@@ -1,0 +1,9 @@
+NumProcesses = 3
+port0 = 10007
+port1 = 10008
+port2 = 10009
+host0 = 127.0.0.1
+host1 = 127.0.0.1
+host2 = 127.0.0.1
+ProcNum = 0
+logfile = "log0.txt"
