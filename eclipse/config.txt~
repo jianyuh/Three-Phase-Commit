@@ -1,6 +1,0 @@
-NumProcesses = 2
-port0 = 10005
-port1 = 10006
-host0 = 10.146.173.93
-host1 = 128.83.144.84
-ProcNum = 0
