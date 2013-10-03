@@ -34,9 +34,9 @@ public class Config {
 		
 		System.out.println("NumProcesses "+numProcesses);
 		
-		addresses = new InetAddress[numProcesses];	//addresses is an array
-		ports = new int[numProcesses];				//ports is an array
-		for (int i=0; i < numProcesses; i++) {
+		addresses = new InetAddress[numProcesses+1];	//addresses is an array
+		ports = new int[numProcesses+1];				//ports is an array
+		for (int i=0; i < numProcesses+1; i++) {
 			//System.out.println("port"+i);
 			ports[i] = loadInt(prop, "port" + i);
 			//System.out.println("host"+i);

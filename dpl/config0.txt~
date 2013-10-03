@@ -7,6 +7,6 @@ port2 = 10009
 host0 = 127.0.0.1
 host1 = 127.0.0.1
 host2 = 127.0.0.1
-ProcNum = 1
-logfile = log1.txt
+ProcNum = 3
+logfile = log-1.txt
 

@@ -19,6 +19,8 @@ import java.util.logging.Logger;
  */
 public class Message {
     public enum messageType {
+        INITIAL,
+        
         VOTE_REQ,
         NO,
         ABORT,
@@ -30,7 +32,6 @@ public class Message {
         STATE_REQ,
         
         UR_ELECTED,
-
     }
     
     //public Logger logger;
@@ -44,7 +45,7 @@ public class Message {
     private String parameter4;
     
     public Message() {
-        System.out.println("I create a message without parameter");
+        //System.out.println("I create a message without parameter");
     }
     
     //public Message()
@@ -67,9 +68,9 @@ public class Message {
     
     public void extractMessage(String str) {
         try {
-        System.out.println("flag 1");
+       // System.out.println("flag 1");
         InputStream stream = new ByteArrayInputStream(str.getBytes("UTF-8"));
-        System.out.println("flag2");
+        //System.out.println("flag2");
         Properties prop =  new Properties();
         prop.load(stream);
         this.msgType = messageType.valueOf(prop.getProperty("msgType"));
