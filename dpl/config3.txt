@@ -1,4 +1,6 @@
 NumProcesses = 3
+port3 = 10010
+host3 = 127.0.0.1
 port0 = 10007
 port1 = 10008
 port2 = 10009

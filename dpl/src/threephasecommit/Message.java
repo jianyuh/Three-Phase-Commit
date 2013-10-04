@@ -32,6 +32,11 @@ public class Message {
         STATE_REQ,
         
         UR_ELECTED,
+        
+        ABORTED,
+        UNCERTAIN,
+        COMMITTED,
+        COMMITTABLE,
     }
     
     //public Logger logger;
@@ -90,6 +95,10 @@ public class Message {
     
     public String getMsgSource() {
         return this.src;
+    }
+    
+    public String getMsgCommand() {
+        return this.command;
     }
     
     public void printMessage() {

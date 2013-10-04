@@ -6,4 +6,4 @@ host0 = 127.0.0.1
 host1 = 127.0.0.1
 host2 = 127.0.0.1
 ProcNum = 2
-logfile = "log2.txt"
+logfile = log2.txt

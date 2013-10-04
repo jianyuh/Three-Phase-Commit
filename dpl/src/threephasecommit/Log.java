@@ -59,7 +59,7 @@ public class Log {
 
     public boolean log(String data) {
         try {
-            this.fileWriter.write(System.currentTimeMillis()+":"+ data +"\n");
+            this.fileWriter.write(data +"\n");
             this.fileWriter.flush();
         } catch(IOException e) {
             return false;
