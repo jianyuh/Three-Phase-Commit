@@ -151,6 +151,20 @@ public class ParticipantProcess {
     public void abort(String command) {
     }
 
+    // This function will be called uniformly by no matter 
+    // a coordinator or participant
+    // which will automatically select someone to be a coordinator
+    // and implement its role
+    public void ProcessStartProtocol() {
+        while (true) {
+            if (this.getCurrentCoordinatorProcnum().equals(this.getProcNum())) {
+                this.CoordinatorCommitProtocol();
+            } else {
+                this.ParticipantCommitProtocol();
+            }
+        }
+    }
+            
     public void CoordinatorTerminationProtocol(String cmd) {
         cmdlog.info("Procnum "+this.getCurrentCoordinatorProcnum()+" is elected as a new coordinator");
         // the new coordinator should update the uplist 
@@ -450,8 +464,8 @@ public class ParticipantProcess {
         // or you will stay here to wait forever
         // all the previous messages before an INITIAL signal will be omitted
         // the INITIAL signal is sent from the first coordinator
-        initial_state:
-        while (true) {
+        //initial_state:
+        //while (true) {
             cmdlog.info("wait for initial signal");
             boolean recv_initial_flag = false;
             while (!recv_initial_flag) {
@@ -491,7 +505,8 @@ public class ParticipantProcess {
                     // i.e. when the participant cannot make the decision unilaterally 
                     // also because uplist is known from the vote_req message 
                     // which is sent from the coordinator
-                    continue initial_state;
+                    return;
+                    //continue initial_state;
                 }
 
                 // try to receive message
@@ -513,7 +528,8 @@ public class ParticipantProcess {
                         // it should realize: remove all the previous died coordinators
                         this.setCurrentCoordinatorProcnum(this.procNum);
                         this.ParticipantTerminationProtocol(command);
-                        continue initial_state;
+                        return;
+                        //continue initial_state;
                     } else if (msgType == messageType.INITIAL) {
                         // send the manager a msg: you cannot operate at this time
                         // because the processes are doing somthing now!
@@ -555,7 +571,8 @@ public class ParticipantProcess {
                         else {
                             this.ParticipantTerminationProtocol(command); 
                         }
-                        continue initial_state;
+                        return;
+                        //continue initial_state;
                     }
 
                     // msg: PRE_COMMIT or ABORT
@@ -593,7 +610,8 @@ public class ParticipantProcess {
                                     } else {
                                         this.ParticipantTerminationProtocol(command);
                                     }
-                                    continue initial_state;
+                                    return;
+                                    //continue initial_state;
                                 }
                                 for (String msg1 : nc.getReceivedMsgs()) {
                                     message.extractMessage(msg1);
@@ -605,14 +623,16 @@ public class ParticipantProcess {
                                         logger.log(COMMIT);
                                         this.state = State.COMMITTED;
                                         this.commit(command);
-                                        continue initial_state;
+                                        return;
+                                        //continue initial_state;
                                     } else if (msgType == messageType.UR_ELECTED) {
                                         this.removeCoordinatorFromUpList();
                                         // removeCoordinatorFromUplist function needs to be written
                                         // it should realize: remove all the previous died coordinators
                                         this.setCurrentCoordinatorProcnum(this.procNum);
                                         this.CoordinatorTerminationProtocol(command);
-                                        continue initial_state;
+                                        return;
+                                        //continue initial_state;
                                     }
                                 }
                             }
@@ -621,14 +641,16 @@ public class ParticipantProcess {
                             logger.log(ABORT);
                             this.state = State.ABORTED;
                             this.abort(command);
-                            continue initial_state;
+                            return;
+                            //continue initial_state;
                         } else if (msgType == messageType.UR_ELECTED) {
                             this.removeCoordinatorFromUpList();
                             // removeCoordinatorFromUplist function needs to be written
                             // it should realize: remove all the previous died coordinators
                             this.setCurrentCoordinatorProcnum(this.procNum);
                             this.CoordinatorTerminationProtocol(command);
-                            continue initial_state;
+                            return;
+                            //continue initial_state;
                         }
                     }
                 }
@@ -643,13 +665,14 @@ public class ParticipantProcess {
 
                 logger.log(ABORT);
                 this.abort(command);
-                continue initial_state;
+                return;
+                //continue initial_state;
 
                 //gen error: after abort??
 
             }
         }
-    }
+    //}
     
     
     
@@ -674,8 +697,8 @@ public class ParticipantProcess {
         
         
         // wait the initial signal from the manager 
-        initial_state: 
-        while (true) {
+        //initial_state: 
+        //while (true) {
             cmdlog.info("wait for initial signal");
             boolean recv_initial_flag = false;
             while (!recv_initial_flag) {
@@ -701,8 +724,10 @@ public class ParticipantProcess {
             //System.exit(0);
             
             this.broadcastMessage(Message.messageType.VOTE_REQ, command);
-            
-            System.exit(0);
+
+            if (this.getProcNum().equals("0")) {
+                System.exit(0);
+            }
             
             cmdlog.info("after broadcast VOTE_REQ");
             
@@ -802,7 +827,8 @@ public class ParticipantProcess {
                 //this.broadcastMessage(yesVoteList, messageType.COMMIT, command);
                 cmdlog.info("after send commit");
                 //error here....
-                continue initial_state;
+                return;
+                //continue initial_state;
             } else {
                 cmdlog.info("enter the abort part");
                 //decision : ABORT...
@@ -812,7 +838,8 @@ public class ParticipantProcess {
                 this.abort(command);
                 this.broadcastMessage(yesVoteList, messageType.ABORT, command);
 
-                continue initial_state;
+                return;
+                //continue initial_state;
                 //generate error here..
             }
 
@@ -820,4 +847,4 @@ public class ParticipantProcess {
 
     }
     
-}
+//}

@@ -13,7 +13,8 @@ public class test02 {
     public static void main(String[] args) {
         ParticipantProcess participant = new ParticipantProcess("config2.txt");
         //participant.CoordinatorCommitProtocol();
-        participant.ParticipantCommitProtocol();
+        //participant.ParticipantCommitProtocol();
+        participant.ProcessStartProtocol();
         participant.playList.printPlayList();
     }
 }
