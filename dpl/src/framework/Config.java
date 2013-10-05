@@ -48,7 +48,7 @@ public class Config {
 			logger.info("procNum not loaded from file");
 		}
                 //if (prop.getProperty("logfile") != null) {
-                        logfile1 = prop.getProperty("logfile");
+                        logfile = prop.getProperty("logfile");
                 //}
 	}
 	
@@ -89,5 +89,5 @@ public class Config {
 	 */
 	public Logger logger;
         
-        public String logfile1;
+        public String logfile;
 }

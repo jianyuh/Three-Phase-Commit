@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.StringBuilder;
 import java.util.Properties;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 
@@ -116,7 +117,7 @@ public class Message {
         System.out.println("msgType:"+msgType+";src:"+src+";dst:"+dst+";command:"+command+";parameter:"+parameter);
     }
     
-    public String toStringUpList(TreeSet<String> UpList, String SelfProcNum) {
+    public String toStringUpList(SortedSet<String> UpList, String SelfProcNum) {
         String parameter =  null;
         for (String str: UpList) {
             parameter = parameter + str + "#";
@@ -141,7 +142,7 @@ public class Message {
     
     
     //may be some problem...
-    public TreeSet<String> extractUplist(String parameter){
+    public SortedSet<String> extractUplist(String parameter){
         TreeSet <String> UpList = new TreeSet <String>();
         String[] temp  = parameter.split("#");
         for (String s: temp) {
@@ -155,5 +156,7 @@ public class Message {
         return str;
     }
     
-    
+    public String getParameter () {
+        return this.parameter;
+    }
 }

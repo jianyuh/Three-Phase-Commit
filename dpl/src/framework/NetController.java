@@ -115,7 +115,6 @@ public class NetController {
 			}
 		}
 		
-		//System.out.println("objs "+objs);
 		return objs;
 	}
 	/**
