@@ -41,7 +41,8 @@ public class ParticipantProcess {
     private String command;
     private Boolean vote;
     //lookup table? ProcNum->Port???
-    public static int TIMEOUT = 5000; //Is this too short??
+    public static int CTIMEOUT = 5000; //Is this too short??
+    public static int PTIMEOUT = 10000;
     public static final String START = "start-3PC";
     public static final String PRE_COMMIT = "PRE_COMMIT";
     public static final String COMMIT = "COMMIT";
@@ -55,9 +56,6 @@ public class ParticipantProcess {
     };
     private State state;
     
-
-    
-
     public ParticipantProcess(String filename) {
         try {
             cmdlog = Logger.getLogger("3pc");   //just for test
@@ -126,6 +124,40 @@ public class ParticipantProcess {
             nc.sendMsg(Integer.parseInt(p), msg.msgToString());
         }
     }
+    
+    //override...successNum: broadcast successNum messages, and then fail
+    public void broadcastMessage(Set<String> recipients, messageType msgType, String command, int successNum) {
+        int count = 0;
+        for (String p : recipients) {
+            count++;
+            if (count >= successNum) {
+                break;
+            }
+            Message msg = new Message(msgType, this.procNum, p, command);
+            msg.printMessage();
+            nc.sendMsg(Integer.parseInt(p), msg.msgToString());
+        }
+    }
+    
+    //override...ProcNum: broadcast message to ProcNum, and then fail....
+    public void broadcastMessage(Set<String> recipients, messageType msgType, String command, String ProcNum) {
+        for (String p : recipients) {
+            if (p != ProcNum) continue;
+            Message msg = new Message(msgType, this.procNum, p, command);
+            msg.printMessage();
+            nc.sendMsg(Integer.parseInt(p), msg.msgToString());
+        }
+    }
+    
+    /*
+     * if (flag_partial_commit_n == true)
+     *     broadcast(......successNum); or broadcast(........ProcNum);
+     * else
+     *     broadcast(........normal parameter).....
+     * 
+     */
+    
+    
 
     public void sendMessage(String procNum, messageType msgType, String command) {
         Message msg = new Message(msgType, this.procNum, procNum, command);
@@ -191,7 +223,7 @@ public class ParticipantProcess {
         long startTime = System.currentTimeMillis();
         while (state_report_count > 0) {
             long endTime = System.currentTimeMillis();
-            if (endTime - startTime >= TIMEOUT) {
+            if (endTime - startTime >= CTIMEOUT) {
                 cmdlog.info("time exceed...when waiting for state reports");
                 break;
             }
@@ -229,6 +261,7 @@ public class ParticipantProcess {
             // the coordinator should first check whether there has already been an abort
             // record in its log
             // if not, it will log abort
+            cmdlog.info("TR 1 entered.");
             logger.log(ABORT);
             this.broadcastMessage(messageType.ABORT, cmd);
         } 
@@ -237,11 +270,13 @@ public class ParticipantProcess {
             // the coordinator should first check whether there has already been a commit
             // record in its log
             // if not, it will log commit
+            cmdlog.info("TR 2 entered.");
             logger.log(COMMIT);
             this.broadcastMessage(messageType.COMMIT, cmd);
         } 
         // TR 3
         else if (this.state == State.UNCERTAIN && !ExistCommittable) {
+            cmdlog.info("TR 3 entered.");
             this.state = State.ABORTED; 
             logger.log(ABORT);
             this.broadcastMessage(messageType.ABORT, cmd);
@@ -250,11 +285,12 @@ public class ParticipantProcess {
         else {
             this.broadcastMessage(UncertainParticipantList, messageType.PRE_COMMIT, cmd);
 
+            cmdlog.info("TR 4 entered.");
             int ACKcount = UncertainParticipantList.size();
             startTime = System.currentTimeMillis();
             while (ACKcount > 0) {
                 long endTime = System.currentTimeMillis();
-                if (endTime - startTime >= TIMEOUT) {
+                if (endTime - startTime >= CTIMEOUT) {
                     cmdlog.info("time exceed...when waiting for ACK in the termination protocol");
                     // although timeout, the coordinator will do nothing
                     // and it will still commit and send commit to all the participants
@@ -325,7 +361,7 @@ public class ParticipantProcess {
         // wait the state_req signal
         while(!recv_statereq_flag) {
             long endTime = System.currentTimeMillis();
-            if (endTime - startTime >= TIMEOUT) {
+            if (endTime - startTime >= PTIMEOUT) {
                 this.removeCoordinatorFromUpList();
                 this.ElectionProtocol();
                 if (this.getCurrentCoordinatorProcnum() == this.procNum) {
@@ -351,6 +387,7 @@ public class ParticipantProcess {
                     } else if (this.state == State.COMMITTED) {
                         stateType = messageType.COMMITTED; 
                     }
+                    assert(this.getCurrentCoordinatorProcnum().equals(message.getMsgSource()));
                     this.sendMessage(this.getCurrentCoordinatorProcnum(), stateType, cmd);
                     cmdlog.info("fuckkkk");
                     // I guess this sendMessage function might be wrong 
@@ -374,7 +411,7 @@ public class ParticipantProcess {
         while (!recv_response) {
             cmdlog.info("ilovewangqi1");
             long endTime = System.currentTimeMillis();
-            if (endTime - startTime >= TIMEOUT) {
+            if (endTime - startTime >= PTIMEOUT) {
                 this.removeCoordinatorFromUpList();
                 this.ElectionProtocol();
                 cmdlog.info("ilovewangqi2s");
@@ -416,7 +453,7 @@ public class ParticipantProcess {
         startTime = System.currentTimeMillis();
         while (!recv_response) {
             long endTime = System.currentTimeMillis();
-            if (endTime - startTime >= TIMEOUT) {
+            if (endTime - startTime >= PTIMEOUT) {
                 this.removeCoordinatorFromUpList();
                 this.ElectionProtocol();
                 if (this.getCurrentCoordinatorProcnum() == this.procNum) {
@@ -459,7 +496,6 @@ public class ParticipantProcess {
         //we wait for the 
         long startTime = System.currentTimeMillis();
 
-
         // find the INITIAL singal and then you can go ahead
         // or you will stay here to wait forever
         // all the previous messages before an INITIAL signal will be omitted
@@ -492,7 +528,7 @@ public class ParticipantProcess {
                 // if TIMEOUT when waiting for the vot_req
                 // then log abort and contiue initial_state
                 long endTime = System.currentTimeMillis();
-                if (endTime - startTime >= TIMEOUT) {
+                if (endTime - startTime >= PTIMEOUT) {
                     //decision = false;
                     //to do, handle with timeout failure?
                     //break;
@@ -554,7 +590,7 @@ public class ParticipantProcess {
                 while (!recv_precommit_flag) {
                     //Hope this will work..........
                     long endTime = System.currentTimeMillis();
-                    if (endTime - startTime >= TIMEOUT) {
+                    if (endTime - startTime >= PTIMEOUT) {
                         cmdlog.info("timeout, when waiting for pre_commit");
                         //remove Coordinator from UpList
                         // this is used for update
@@ -596,7 +632,7 @@ public class ParticipantProcess {
                             boolean recv_commit_flag = false;
                             while (!recv_commit_flag) {
                                 endTime = System.currentTimeMillis();
-                                if (endTime - startTime >= TIMEOUT) {
+                                if (endTime - startTime >= PTIMEOUT) {
                                     cmdlog.info("timeout...when waiting for commit");
                                     //remove Coordinator from UpList
                                     // this is used for update
@@ -673,9 +709,7 @@ public class ParticipantProcess {
             }
         }
     //}
-    
-    
-    
+
         //send VOTE_REQ
     public void CoordinatorCommitProtocol() {
         Message message = new Message();
@@ -694,7 +728,6 @@ public class ParticipantProcess {
         //while(true) {
 
         //msg.
-        
         
         // wait the initial signal from the manager 
         //initial_state: 
@@ -715,7 +748,6 @@ public class ParticipantProcess {
                 }
             }
             cmdlog.info("recv initial message");
-          
             
             // once received the initial signal 
             // the coordinator can begin 3PC 
@@ -725,9 +757,9 @@ public class ParticipantProcess {
             
             this.broadcastMessage(Message.messageType.VOTE_REQ, command);
 
-            if (this.getProcNum().equals("0")) {
-                System.exit(0);
-            }
+            //if (this.getProcNum().equals("0")) {
+               // System.exit(0);
+            //}
             
             cmdlog.info("after broadcast VOTE_REQ");
             
@@ -736,7 +768,12 @@ public class ParticipantProcess {
 
             int upListSize = this.getUpList().size();
             //int voteCount = upListSize - 1;
-            int voteCount = upListSize;
+            int voteCount = this.config.numProcesses-1;
+            //int voteCount = upListSize;
+            System.out.println("Print the UpList now: ");
+            for (String s: upList) {
+                System.out.println(s);
+            }
 
             System.out.println("voteCount:" + voteCount);
             cmdlog.info("before receive the vote");
@@ -748,7 +785,7 @@ public class ParticipantProcess {
             long startTime = System.currentTimeMillis();
             while (voteCount > 0) {
                 long endTime = System.currentTimeMillis();
-                if (endTime - startTime >= TIMEOUT) {
+                if (endTime - startTime >= CTIMEOUT) {
                     cmdlog.info("time exceed...when waiting for vote");
                     decision = false;
                     break;
@@ -773,6 +810,9 @@ public class ParticipantProcess {
             // it begins to process the votes based on his own vote
             // decision may be made before, or not
 
+            //if (this.getProcNum().equals("0")) {
+                //System.exit(0);
+            //}
             // Decision is YES
             if (decision && this.castVote(command) == true) {
                 //send precommit
@@ -780,6 +820,9 @@ public class ParticipantProcess {
                 // coordinator needs to log PRE_COMMIT
                 logger.log(PRE_COMMIT);
                 this.broadcastMessage(Message.messageType.PRE_COMMIT, command);//I hope to add some errors when sending to nth client...
+                if (this.getProcNum().equals("0")) {
+                    System.exit(0);
+                }
                 cmdlog.info("after broadcast PRE_COMMIT");
                 //add some manul error here.
                 yesVoteList = new HashSet<String>();
@@ -796,7 +839,7 @@ public class ParticipantProcess {
                 startTime = System.currentTimeMillis();
                 while (voteCount > 0) {
                     long endTime = System.currentTimeMillis();
-                    if (endTime - startTime >= TIMEOUT) {
+                    if (endTime - startTime >= CTIMEOUT) {
                         cmdlog.info("time exceed...when waiting for ACK");
                         // although timeout, the coordinator will do nothing
                         // and it will still commit and send commit to all the participants
