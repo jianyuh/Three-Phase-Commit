@@ -8,7 +8,6 @@ package threephasecommit;
 
 /**
  *
- * @author jianyu
  */
 
 import java.util.Hashtable;

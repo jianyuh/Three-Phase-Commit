@@ -6,7 +6,6 @@ package threephasecommit;
  */
 /**
  *
- * @author jianyu
  */
 import framework.Config;
 import framework.NetController;
@@ -38,8 +37,14 @@ public class ParticipantProcess {
     public PlayList playList;
     //private SortedSet<ParticipantProcess> upList;              //Do we need recoverList??
     private SortedSet<String> upList;
+    TreeSet<String> recoverList;
     private String command;
+    private String parameter;
     private Boolean vote;
+    private String song;
+    private String URL1;
+    private String URL2;
+    
     //lookup table? ProcNum->Port???
     public static int CTIMEOUT = 5000; //Is this too short??
     public static int PTIMEOUT = 10000;
@@ -65,13 +70,16 @@ public class ParticipantProcess {
             nc = new NetController(config);
 
             upList = new TreeSet<String>();
+            recoverList = new TreeSet<String>();
             // How to generate upList??
+            /*
             for (int i = 0; i < config.numProcesses; i++) {
                 if (i != Integer.parseInt(procNum)) {
                     upList.add(Integer.toString(i));
                 }
                 //upList.add(Integer.toString(1));
             }
+            */
             //need to be changed....
             // we need to consider following cases: 
             // 1. failure but timeout is known to this participant
@@ -83,9 +91,14 @@ public class ParticipantProcess {
             //command = "add"; // do not know why
             vote = true;
             playList = new PlayList();
-            String logFile = this.config.logfile;
+            System.out.println("logfile:"+this.config.logfile1);
+            String logFile = this.config.logfile1;
             this.logger = new Log(logFile, true);
             this.state=State.ABORTED;
+            
+            
+            this.broadcastMessage(messageType.RECOVERY);
+            
         } catch (IOException e) {
             System.out.println(e);
         }
@@ -113,37 +126,51 @@ public class ParticipantProcess {
         this.upList.remove(this.getCurrentCoordinatorProcnum());
     }
             
-    public void broadcastMessage(messageType msgType, String command) {
-        this.broadcastMessage(this.getUpList(), msgType, command);
+    
+    public void broadcastMessage(messageType msgType) {
+        this.broadcastMessage(this.getUpList(), msgType, this.command, this.parameter);
+    }
+    
+    public void broadcastMessage(messageType msgType, String command, String parameter) {
+        this.broadcastMessage(this.getUpList(), msgType, command, parameter);
     }
 
-    public void broadcastMessage(Set<String> recipients, messageType msgType, String command) {
+    public void broadcastMessage(Set<String> recipients, messageType msgType, String command, String parameter) {
         for (String p : recipients) {
-            Message msg = new Message(msgType, this.procNum, p, command);
+            Message msg = new Message(msgType, this.procNum, p, command, parameter);
             msg.printMessage();
             nc.sendMsg(Integer.parseInt(p), msg.msgToString());
         }
     }
     
+    public void broadcastMessage(Set<String> recipients, messageType msgType) {
+        for (String p : recipients) {
+            Message msg = new Message(msgType, this.procNum, p, this.command, this.parameter);
+            msg.printMessage();
+            nc.sendMsg(Integer.parseInt(p), msg.msgToString());
+        }
+    }
+    
+    
     //override...successNum: broadcast successNum messages, and then fail
-    public void broadcastMessage(Set<String> recipients, messageType msgType, String command, int successNum) {
+    public void broadcastMessage(Set<String> recipients, messageType msgType, String command, String parameter, int successNum) {
         int count = 0;
         for (String p : recipients) {
             count++;
             if (count >= successNum) {
                 break;
             }
-            Message msg = new Message(msgType, this.procNum, p, command);
+            Message msg = new Message(msgType, this.procNum, p, command, parameter);
             msg.printMessage();
             nc.sendMsg(Integer.parseInt(p), msg.msgToString());
         }
     }
     
     //override...ProcNum: broadcast message to ProcNum, and then fail....
-    public void broadcastMessage(Set<String> recipients, messageType msgType, String command, String ProcNum) {
+    public void broadcastMessage(Set<String> recipients, messageType msgType, String command, String parameter, String ProcNum) {
         for (String p : recipients) {
             if (p != ProcNum) continue;
-            Message msg = new Message(msgType, this.procNum, p, command);
+            Message msg = new Message(msgType, this.procNum, p, command, parameter);
             msg.printMessage();
             nc.sendMsg(Integer.parseInt(p), msg.msgToString());
         }
@@ -159,8 +186,14 @@ public class ParticipantProcess {
     
     
 
-    public void sendMessage(String procNum, messageType msgType, String command) {
-        Message msg = new Message(msgType, this.procNum, procNum, command);
+    public void sendMessage(String procNum, messageType msgType, String command, String parameter) {
+        Message msg = new Message(msgType, this.procNum, procNum, command, parameter);
+        msg.printMessage();
+        nc.sendMsg(Integer.parseInt(procNum), msg.msgToString());
+    }
+    
+    public void sendMessage(String procNum, messageType msgType) {
+        Message msg = new Message(msgType, this.procNum, procNum, this.command, this.parameter);
         msg.printMessage();
         nc.sendMsg(Integer.parseInt(procNum), msg.msgToString());
     }
@@ -188,16 +221,48 @@ public class ParticipantProcess {
     // which will automatically select someone to be a coordinator
     // and implement its role
     public void ProcessStartProtocol() {
+        Message message = new Message();
+        
+        upList.addAll(recoverList);
+        
         while (true) {
-            if (this.getCurrentCoordinatorProcnum().equals(this.getProcNum())) {
-                this.CoordinatorCommitProtocol();
-            } else {
-                this.ParticipantCommitProtocol();
+            cmdlog.info("wait for initial signal");
+            boolean recv_initial_flag = false;
+            while (!recv_initial_flag) {
+                for (String msg : nc.getReceivedMsgs()) {
+                    cmdlog.info("get some message");
+                    message.extractMessage(msg);
+                    message.printMessage();
+
+                    messageType msgType = message.getMsgType();
+                    if (msgType == messageType.INITIAL) {
+                        recv_initial_flag = true;
+                        this.command = message.getMsgCommand();//////////////////////////later we should assert(msg.command == this.command)???
+
+                        String[] str = message.extractSong_URL_Coordinator(this.parameter);
+                        if (message.getMsgCommand() == "edit") {
+                            this.song = str[0];
+                            this.URL1 = str[1];
+                            this.URL2 = str[2];
+                            this.currentCoordinatorProcnum = str[3];
+                        } else {
+                            this.song = str[0];
+                            this.URL1 = str[1];
+                            this.currentCoordinatorProcnum = str[2];
+                        }
+                        break;
+                    }
+                }
+                if (this.getCurrentCoordinatorProcnum().equals(this.getProcNum())) {
+                    this.CoordinatorCommitProtocol();
+                } else {
+                    this.ParticipantCommitProtocol();
+                }
             }
         }
     }
-            
-    public void CoordinatorTerminationProtocol(String cmd) {
+     
+    public void CoordinatorTerminationProtocol() {
         cmdlog.info("Procnum "+this.getCurrentCoordinatorProcnum()+" is elected as a new coordinator");
         // the new coordinator should update the uplist 
         // to include all the survived participants
@@ -207,7 +272,7 @@ public class ParticipantProcess {
         // this is only used for testing
 
         // first broadcast the state_req signal
-        this.broadcastMessage(messageType.STATE_REQ, cmd);
+        this.broadcastMessage(messageType.STATE_REQ, this.command, this.parameter);
         
         int upListSize = this.getUpList().size();
         //int voteCount = upListSize - 1;
@@ -263,7 +328,7 @@ public class ParticipantProcess {
             // if not, it will log abort
             cmdlog.info("TR 1 entered.");
             logger.log(ABORT);
-            this.broadcastMessage(messageType.ABORT, cmd);
+            this.broadcastMessage(messageType.ABORT);
         } 
         // TR 2
         else if (this.state == State.COMMITTED || ExistCommitted) {
@@ -272,18 +337,18 @@ public class ParticipantProcess {
             // if not, it will log commit
             cmdlog.info("TR 2 entered.");
             logger.log(COMMIT);
-            this.broadcastMessage(messageType.COMMIT, cmd);
+            this.broadcastMessage(messageType.COMMIT);
         } 
         // TR 3
         else if (this.state == State.UNCERTAIN && !ExistCommittable) {
             cmdlog.info("TR 3 entered.");
             this.state = State.ABORTED; 
             logger.log(ABORT);
-            this.broadcastMessage(messageType.ABORT, cmd);
+            this.broadcastMessage(messageType.ABORT);
         }
         // TR 4
         else {
-            this.broadcastMessage(UncertainParticipantList, messageType.PRE_COMMIT, cmd);
+            this.broadcastMessage(UncertainParticipantList, messageType.PRE_COMMIT);
 
             cmdlog.info("TR 4 entered.");
             int ACKcount = UncertainParticipantList.size();
@@ -306,26 +371,41 @@ public class ParticipantProcess {
                 }
             }
             logger.log(COMMIT);
-            this.broadcastMessage(messageType.COMMIT, cmd);
+            this.broadcastMessage(messageType.COMMIT);
         }
     }
 
     
     public void Managerprocess() {
         Message message = new Message();
-        String cmd = null;
+        String line = null;
         while (true) {
             try {
                 System.out.println("input:");
                 BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in));
-                cmd = bufferRead.readLine();
-
-                System.out.println(cmd);
+                line = bufferRead.readLine();
+                System.out.println(line);
             } catch (IOException e) {
                 e.printStackTrace();
             } 
-            this.broadcastMessage(messageType.INITIAL, cmd);
+            String[] str = line.split(" ");
+            this.command = str[0];
+            this.song = str[1];
+            this.URL1 = str[2];
+            if (this.command == "edit") {
+               this.URL2 = str[3];
+               this.currentCoordinatorProcnum = str[4];
+               this.parameter = this.song + "#" + this.URL1 +"#" + this.URL2 +"#"+this.currentCoordinatorProcnum;
+            }else {
+               this.currentCoordinatorProcnum = str[3];
+               this.parameter = this.song + "#" + this.URL1 + "#" + this.currentCoordinatorProcnum;
+            }
+            
+            
+            this.broadcastMessage(messageType.INITIAL);
+            
         } 
+        
     }
 
     // election protocol
@@ -346,10 +426,10 @@ public class ParticipantProcess {
         
         cmdlog.info(newCoordinator);
         
-        this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.UR_ELECTED, this.command);
+        this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.UR_ELECTED);
     }
         
-    public void ParticipantTerminationProtocol(String cmd) {
+    public void ParticipantTerminationProtocol() {
         boolean recv_statereq_flag = false;
         Message message = new Message();
         messageType msgType = null; 
@@ -365,10 +445,10 @@ public class ParticipantProcess {
                 this.removeCoordinatorFromUpList();
                 this.ElectionProtocol();
                 if (this.getCurrentCoordinatorProcnum() == this.procNum) {
-                    this.CoordinatorTerminationProtocol(cmd);
+                    this.CoordinatorTerminationProtocol();
                 }
                 else {
-                    this.ParticipantTerminationProtocol(cmd);
+                    this.ParticipantTerminationProtocol();
                 }
                 return;
             }
@@ -388,7 +468,7 @@ public class ParticipantProcess {
                         stateType = messageType.COMMITTED; 
                     }
                     assert(this.getCurrentCoordinatorProcnum().equals(message.getMsgSource()));
-                    this.sendMessage(this.getCurrentCoordinatorProcnum(), stateType, cmd);
+                    this.sendMessage(this.getCurrentCoordinatorProcnum(), stateType);
                     cmdlog.info("fuckkkk");
                     // I guess this sendMessage function might be wrong 
                     // because different participant may not agree on the same coordinator
@@ -398,7 +478,7 @@ public class ParticipantProcess {
                     // removeCoordinatorFromUplist function needs to be written
                     // it should realize: remove all the previous died coordinators
                     this.setCurrentCoordinatorProcnum(this.procNum);
-                    this.CoordinatorTerminationProtocol(cmd);
+                    this.CoordinatorTerminationProtocol();
                     return;
                 }
             }
@@ -418,10 +498,10 @@ public class ParticipantProcess {
                 cmdlog.info(this.getCurrentCoordinatorProcnum());
                 
                 if (this.getCurrentCoordinatorProcnum() == this.procNum) {
-                    this.CoordinatorTerminationProtocol(cmd);
+                    this.CoordinatorTerminationProtocol();
                 }
                 else {
-                    this.ParticipantTerminationProtocol(cmd);
+                    this.ParticipantTerminationProtocol();
                 }
                 return;
             }
@@ -440,7 +520,7 @@ public class ParticipantProcess {
                     logger.log(COMMIT);
                     return;
                 } else if (msgType == messageType.PRE_COMMIT) {
-                    this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.ACK, cmd);
+                    this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.ACK);
                     recv_response = true;
                     break;
                 }
@@ -457,10 +537,10 @@ public class ParticipantProcess {
                 this.removeCoordinatorFromUpList();
                 this.ElectionProtocol();
                 if (this.getCurrentCoordinatorProcnum() == this.procNum) {
-                    this.CoordinatorTerminationProtocol(cmd);
+                    this.CoordinatorTerminationProtocol();
                 }
                 else {
-                    this.ParticipantTerminationProtocol(cmd);
+                    this.ParticipantTerminationProtocol();
                 }
                 return;
             }
@@ -476,7 +556,7 @@ public class ParticipantProcess {
                     // removeCoordinatorFromUplist function needs to be written
                     // it should realize: remove all the previous died coordinators
                     this.setCurrentCoordinatorProcnum(this.procNum);
-                    this.CoordinatorTerminationProtocol(cmd);
+                    this.CoordinatorTerminationProtocol();
                     return;
                 }
             }
@@ -512,7 +592,7 @@ public class ParticipantProcess {
                     messageType msgType = message.getMsgType();
                     if (msgType == messageType.INITIAL) {
                         recv_initial_flag = true;
-                        this.command = message.getMsgCommand();
+                        this.command = message.getMsgCommand();//////////////////////////later we should assert(msg.command == this.command)???
                         break;
                     }
                 }
@@ -563,7 +643,7 @@ public class ParticipantProcess {
                         // removeCoordinatorFromUplist function needs to be written
                         // it should realize: remove all the previous died coordinators
                         this.setCurrentCoordinatorProcnum(this.procNum);
-                        this.ParticipantTerminationProtocol(command);
+                        this.ParticipantTerminationProtocol();
                         return;
                         //continue initial_state;
                     } else if (msgType == messageType.INITIAL) {
@@ -581,7 +661,7 @@ public class ParticipantProcess {
                 logger.log(YES);
                 this.state = State.UNCERTAIN;
 
-                sendMessage(this.getCurrentCoordinatorProcnum(), messageType.YES, command);
+                sendMessage(this.getCurrentCoordinatorProcnum(), messageType.YES);
                 cmdlog.info("after sending YES");
 
                 // try to receive the PRE_COMMIT signal
@@ -602,10 +682,10 @@ public class ParticipantProcess {
                         this.ElectionProtocol(); 
                         cmdlog.info("process "+this.getCurrentCoordinatorProcnum()+" is elected as a new coordinator");
                         if (this.getCurrentCoordinatorProcnum() == this.procNum) {
-                            this.CoordinatorTerminationProtocol(command);
+                            this.CoordinatorTerminationProtocol();
                         }
                         else {
-                            this.ParticipantTerminationProtocol(command); 
+                            this.ParticipantTerminationProtocol(); 
                         }
                         return;
                         //continue initial_state;
@@ -623,7 +703,7 @@ public class ParticipantProcess {
                             // you do not need to log PRE_COMMIT here
 
                             // send ack to coordinator
-                            this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.ACK, command);
+                            this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.ACK);
                             cmdlog.info("after sending ack");
                             this.state = State.COMMITTABLE;
 
@@ -642,9 +722,9 @@ public class ParticipantProcess {
                                     // and then choose it as the new coordinator
                                     this.ElectionProtocol();
                                     if (this.getCurrentCoordinatorProcnum() == this.procNum) {
-                                        this.CoordinatorTerminationProtocol(command);
+                                        this.CoordinatorTerminationProtocol();
                                     } else {
-                                        this.ParticipantTerminationProtocol(command);
+                                        this.ParticipantTerminationProtocol();
                                     }
                                     return;
                                     //continue initial_state;
@@ -666,7 +746,7 @@ public class ParticipantProcess {
                                         // removeCoordinatorFromUplist function needs to be written
                                         // it should realize: remove all the previous died coordinators
                                         this.setCurrentCoordinatorProcnum(this.procNum);
-                                        this.CoordinatorTerminationProtocol(command);
+                                        this.CoordinatorTerminationProtocol();
                                         return;
                                         //continue initial_state;
                                     }
@@ -684,7 +764,7 @@ public class ParticipantProcess {
                             // removeCoordinatorFromUplist function needs to be written
                             // it should realize: remove all the previous died coordinators
                             this.setCurrentCoordinatorProcnum(this.procNum);
-                            this.CoordinatorTerminationProtocol(command);
+                            this.CoordinatorTerminationProtocol();
                             return;
                             //continue initial_state;
                         }
@@ -695,7 +775,7 @@ public class ParticipantProcess {
             } else {
                 //gen error: before send...
                 cmdlog.info("send no and abort");
-                this.sendMessage(this.currentCoordinatorProcnum, messageType.NO, command);
+                this.sendMessage(this.currentCoordinatorProcnum, messageType.NO);
 
                 //gen erro after send..
 
@@ -707,6 +787,7 @@ public class ParticipantProcess {
                 //gen error: after abort??
 
             }
+            
         }
     //}
 
@@ -755,7 +836,7 @@ public class ParticipantProcess {
             
             //System.exit(0);
             
-            this.broadcastMessage(Message.messageType.VOTE_REQ, command);
+            this.broadcastMessage(Message.messageType.VOTE_REQ);
 
             //if (this.getProcNum().equals("0")) {
                // System.exit(0);
@@ -819,10 +900,10 @@ public class ParticipantProcess {
                 //add some manual error here....
                 // coordinator needs to log PRE_COMMIT
                 logger.log(PRE_COMMIT);
-                this.broadcastMessage(Message.messageType.PRE_COMMIT, command);//I hope to add some errors when sending to nth client...
-                if (this.getProcNum().equals("0")) {
-                    System.exit(0);
-                }
+                this.broadcastMessage(Message.messageType.PRE_COMMIT);//I hope to add some errors when sending to nth client...
+                //if (this.getProcNum().equals("0")) {
+                //    System.exit(0);
+                //}
                 cmdlog.info("after broadcast PRE_COMMIT");
                 //add some manul error here.
                 yesVoteList = new HashSet<String>();
@@ -865,7 +946,7 @@ public class ParticipantProcess {
                 //System.out.println(COMMIT);
 
                 //error here..after commit....
-                this.broadcastMessage(messageType.COMMIT, command);
+                this.broadcastMessage(messageType.COMMIT);
                 // why is it supposed to only sent to yesVoteList?????
                 //this.broadcastMessage(yesVoteList, messageType.COMMIT, command);
                 cmdlog.info("after send commit");
@@ -879,7 +960,7 @@ public class ParticipantProcess {
                 //generate error here...after abort, before send ...
                 logger.log(ABORT);
                 this.abort(command);
-                this.broadcastMessage(yesVoteList, messageType.ABORT, command);
+                this.broadcastMessage(yesVoteList, messageType.ABORT);
 
                 return;
                 //continue initial_state;

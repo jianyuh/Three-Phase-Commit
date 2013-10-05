@@ -40,7 +40,6 @@ public class IncomingSock extends Thread {
 		while((tmp = queue.poll()) != null)
 			msgs.add(tmp);
 		
-		//System.out.println("msgs "+msgs);
 		return msgs;
 	}
 	

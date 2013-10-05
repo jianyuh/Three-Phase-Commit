@@ -29,7 +29,6 @@ public class ListenServer extends Thread {
 		this.socketList = sockets;
 
 		procNum = conf.procNum;
-		System.out.println("procNum "+procNum);
 		port = conf.ports[procNum];
 		try {
 			serverSock = new ServerSocket(port);
