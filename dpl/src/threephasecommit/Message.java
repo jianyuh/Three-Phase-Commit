@@ -118,7 +118,7 @@ public class Message {
     }
     
     public String toStringUpList(SortedSet<String> UpList, String SelfProcNum) {
-        String parameter =  null;
+        String parameter =  "";
         for (String str: UpList) {
             parameter = parameter + str + "#";
         }

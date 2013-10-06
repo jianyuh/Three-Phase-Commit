@@ -23,9 +23,16 @@ public class PlayList {
     }
     
     //delete just songName??
-    void delete(String songName){
+    void delete(String songName, String URL){
         if(playList.containsKey(songName)){
             playList.remove(songName);
+        }
+    }
+    
+    void edit(String songName, String URL) {
+        if(playList.contains(songName)) {
+            playList.remove(songName);
+            playList.put(songName, URL);
         }
     }
     

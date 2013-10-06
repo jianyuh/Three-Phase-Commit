@@ -1,9 +1,13 @@
 package threephasecommit;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /*
  * To change this template, choose Tools | Templates
@@ -12,7 +16,7 @@ import java.io.IOException;
 
 /**
  *
- * @author jianyu
+ *
  */
 public class Log {
     
@@ -50,13 +54,14 @@ public class Log {
         
         this.file = file;
         this.filePath = file.getPath();
-        this.fileWriter = new FileWriter(this.file);
+        this.fileWriter = new FileWriter(this.file, true);
     }
     
     public String getFilePath() {
         return this.filePath;
     }
 
+    /*
     public boolean log(String data) {
         try {
             this.fileWriter.write(data +"\n");
@@ -65,6 +70,26 @@ public class Log {
             return false;
         }
         return true;
+    }*/
+    
+    public String logread(String fileName) throws FileNotFoundException, IOException {
+        BufferedReader input = new BufferedReader(new FileReader(fileName));
+        String last="", line;
+        while ((line = input.readLine()) != null) {
+            last = line;
+        }
+        return last;
+    }
+    
+    public boolean log(String data, String command, String song, String URL) {
+        try {
+            this.fileWriter.write(System.currentTimeMillis()+" "+data+" "+command+" "+song+" "+URL+"\n");
+            this.fileWriter.flush();
+        } catch(IOException e) {
+            return false;
+        }
+        return true;
+        
     }
     
 }

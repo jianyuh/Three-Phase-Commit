@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.logging.Level;
 import threephasecommit.Log;
 import threephasecommit.Message;
 import threephasecommit.Message.messageType;
@@ -47,8 +48,7 @@ public class ParticipantProcess {
     private String parameter;
     private Boolean vote;
     private String song;
-    private String URL1;
-    private String URL2;
+    private String URL;
     //lookup table? ProcNum->Port???
     public static int CTIMEOUT = 5000; //Is this too short??
     public static int PTIMEOUT = 10000;
@@ -84,6 +84,10 @@ public class ParticipantProcess {
                 }
             }
             upList = broadcastList; 
+            System.out.print("Uplist: ");
+            for (String s: this.upList) {
+                System.out.println(s+ " ");
+            }
             // How to generate upList??
             /*
             for (int i = 0; i < config.numProcesses; i++) {
@@ -156,22 +160,13 @@ public class ParticipantProcess {
 
                         String[] str = message.extractSong_URL_Coordinator(message.getParameter());
                         cmdlog.info("This INITIAL message contains the parameters: " + message.getParameter());
-                        if (this.command == "edit") {
-                            cmdlog.info("The following parameters are contained in this EDIT command");
-                            this.song = str[0];
-                            this.URL1 = str[1];
-                            this.URL2 = str[2];
-                            cmdlog.info(str[0] + str[1] + str[2]);
-                            this.currentCoordinatorProcnum = str[3];
-                            cmdlog.info("The manager wants to set the process with ProcNum " + str[3] + " to be the coordinator");
-                        } else {
-                            cmdlog.info("The following parameters are contained in this " + this.command + " command");
-                            this.song = str[0];
-                            this.URL1 = str[1];
-                            cmdlog.info(str[0] + str[1]);
-                            this.currentCoordinatorProcnum = str[2];
-                            cmdlog.info("The manager wants to set the process with ProcNum " + str[2] + " to be the coordinator");
-                        }
+                        cmdlog.info("The following parameters are contained in this " + this.command + " command");
+                        this.song = str[0];
+                        this.URL = str[1];
+                        cmdlog.info(str[0] + str[1]);
+                        this.currentCoordinatorProcnum = str[2];
+                        cmdlog.info("The manager wants to set the process with ProcNum " + str[2] + " to be the coordinator");
+
                         if (this.getCurrentCoordinatorProcnum().equals(this.getProcNum())) {
                             this.CoordinatorCommitProtocol();
                         } else {
@@ -294,9 +289,11 @@ public class ParticipantProcess {
     public void commit(String command) {
         //just add song, url to the playList;
         if (command == "add") {
-            playList.add("hello", "www.google.com");
+            playList.add(song, URL);
         } else if (command == "delete") {
-            playList.delete("hello");
+            playList.delete(song, URL);
+        } else if (command == "edit") {
+            playList.edit(song, URL);//actually, we can use only URL2....
         }
         return;
     }
@@ -314,6 +311,11 @@ public class ParticipantProcess {
         // this is only used for testing
 
         // first broadcast the state_req signal
+        // this.upList.
+        System.out.print("Uplist: ");
+        for (String s: this.upList) {
+            System.out.println(s + " ");
+        }
         this.broadcastMessage(messageType.STATE_REQ, this.command, this.parameter);
 
         int upListSize = this.getUpList().size();
@@ -371,7 +373,7 @@ public class ParticipantProcess {
             // record in its log
             // if not, it will log abort
             cmdlog.info("TR 1 entered.");
-            logger.log(ABORT);
+            logger.log(ABORT, command, song, URL);
             this.broadcastMessage(messageType.ABORT);
         } // TR 2
         else if (this.state == State.COMMITTED || ExistCommitted) {
@@ -379,13 +381,13 @@ public class ParticipantProcess {
             // record in its log
             // if not, it will log commit
             cmdlog.info("TR 2 entered.");
-            logger.log(COMMIT);
+            logger.log(COMMIT, command, song, URL);
             this.broadcastMessage(messageType.COMMIT);
         } // TR 3
         else if (this.state == State.UNCERTAIN && !ExistCommittable) {
             cmdlog.info("TR 3 entered.");
             this.state = State.ABORTED;
-            logger.log(ABORT);
+            logger.log(ABORT, command, song, URL);
             this.broadcastMessage(messageType.ABORT);
         } // TR 4
         else {
@@ -413,7 +415,7 @@ public class ParticipantProcess {
                     }
                 }
             }
-            logger.log(COMMIT);
+            logger.log(COMMIT, command, song, URL);
             this.broadcastMessage(messageType.COMMIT);
         }
     }
@@ -433,15 +435,10 @@ public class ParticipantProcess {
             String[] str = line.split(" ");
             this.command = str[0];
             this.song = str[1];
-            this.URL1 = str[2];
-            if (this.command == "edit") {
-                this.URL2 = str[3];
-                this.currentCoordinatorProcnum = str[4];
-                this.parameter = this.song + "#" + this.URL1 + "#" + this.URL2 + "#" + this.currentCoordinatorProcnum;
-            } else {
-                this.currentCoordinatorProcnum = str[3];
-                this.parameter = this.song + "#" + this.URL1 + "#" + this.currentCoordinatorProcnum;
-            }
+            this.URL = str[2];
+            this.currentCoordinatorProcnum = str[3];
+            this.parameter = this.song + "#" + this.URL + "#" + this.currentCoordinatorProcnum;
+
 
             this.broadcastMessage(this.broadcastList, messageType.INITIAL);
 
@@ -553,12 +550,12 @@ public class ParticipantProcess {
                 if (msgType == messageType.ABORT) {
                     // you need to first check whether the log contains the ABORT record 
                     // for the current command
-                    logger.log(ABORT);
+                    logger.log(ABORT, command, song, URL);
                     return;
                 } else if (msgType == messageType.COMMIT) {
                     // you need to first check whether the log contains the C record 
                     // for the current command
-                    logger.log(COMMIT);
+                    logger.log(COMMIT,command, song, URL);
                     return;
                 } else if (msgType == messageType.PRE_COMMIT) {
                     this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.ACK);
@@ -591,7 +588,7 @@ public class ParticipantProcess {
                 message.printMessage();
                 msgType = message.getMsgType();
                 if (msgType == messageType.COMMIT) {
-                    logger.log(COMMIT);
+                    logger.log(COMMIT, command, song, URL);
                     return;
                 } else if (msgType == messageType.UR_ELECTED) {
                     this.removeCoordinatorFromUpList();
@@ -659,7 +656,7 @@ public class ParticipantProcess {
                 //to do, handle with timeout failure?
                 //break;
                 cmdlog.info("time exceed...when waiting for vote_req");
-                logger.log(ABORT);
+                logger.log(ABORT, command, song, URL);
                 this.abort(command);
                 // we do not need to remove the coordinator from the uplist
                 // because we can make the decision to abort now
@@ -710,7 +707,7 @@ public class ParticipantProcess {
 
         // If voting YES
         if (this.castVote(this.command) == true) {
-            logger.log(YES);
+            logger.log(YES, command, song, URL);
             this.state = State.UNCERTAIN;
 
             sendMessage(this.getCurrentCoordinatorProcnum(), messageType.YES);
@@ -726,6 +723,10 @@ public class ParticipantProcess {
                     cmdlog.info("timeout, when waiting for pre_commit");
                     //remove Coordinator from UpList
                     // this is used for update
+                    System.out.print("Uplist: ");
+                    for (String s: this.upList) {
+                        System.out.println(s + " ");
+                    }
                     this.removeCoordinatorFromUpList();
                     // election protocol does the following things: 
                     // it finds the participants existing in this participant's uplist
@@ -787,7 +788,7 @@ public class ParticipantProcess {
                                 if (msgType == messageType.COMMIT) {
                                     recv_commit_flag = true;
                                     cmdlog.info("receive commit");
-                                    logger.log(COMMIT);
+                                    logger.log(COMMIT, command, song, URL);
                                     this.state = State.COMMITTED;
                                     this.commit(command);
                                     return;
@@ -807,7 +808,7 @@ public class ParticipantProcess {
                         }
                     } else if (msgType == messageType.ABORT) {
                         cmdlog.info("receive abort when waiting for pre_commit");
-                        logger.log(ABORT);
+                        logger.log(ABORT, command, song, URL);
                         this.state = State.ABORTED;
                         this.abort(command);
                         return;
@@ -834,7 +835,7 @@ public class ParticipantProcess {
 
             //gen erro after send..
 
-            logger.log(ABORT);
+            logger.log(ABORT, command, song, URL);
             this.abort(command);
             return;
             //continue initial_state;
@@ -889,13 +890,18 @@ public class ParticipantProcess {
 
         // once received the initial signal 
         // the coordinator can begin 3PC 
-        logger.log(START);
+        logger.log(START, command, song, URL);
 
         //System.exit(0);
 
         // compress the UpList into a string
         // and send it to all the participants in the UpList
+        System.out.println("Uplist: ");
+        for (String s: this.upList) {
+            System.out.println(s + " ");
+        }
         String toSendParameter = message.toStringUpList(this.upList, this.procNum);
+        System.out.println(toSendParameter);
         this.broadcastMessage(messageType.VOTE_REQ, this.command, toSendParameter);
         // this.broadcastMessage(Message.messageType.VOTE_REQ);
 
@@ -957,12 +963,27 @@ public class ParticipantProcess {
         //if (this.getProcNum().equals("0")) {
         //System.exit(0);
         //}
+        
+        System.out.println("Kill the coordinator with ProcNum 0");
+        try {
+            Thread.sleep(8000);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(ParticipantProcess.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        System.out.println("Kill the coordinator with ProcNum 1");
+        try {
+            Thread.sleep(8000);
+        } catch (InterruptedException ex) {
+            Logger.getLogger(ParticipantProcess.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+        
         // Decision is YES
         if (decision && this.castVote(command) == true) {
             //send precommit
             //add some manual error here....
             // coordinator needs to log PRE_COMMIT
-            logger.log(PRE_COMMIT);
+            logger.log(PRE_COMMIT, command, song, URL);
             this.broadcastMessage(Message.messageType.PRE_COMMIT);//I hope to add some errors when sending to nth client...
             //if (this.getProcNum().equals("0")) {
             //    System.exit(0);
@@ -1007,7 +1028,7 @@ public class ParticipantProcess {
             //ACK is not received for all. Just ignore....continue to send commit...
 
             //commit
-            logger.log(COMMIT);
+            logger.log(COMMIT,command, song, URL);
             this.commit(command);//execute the command....
             //System.out.println(COMMIT);
 
@@ -1024,7 +1045,7 @@ public class ParticipantProcess {
             //decision : ABORT...
             decision = false;//including the condition for only coodinator vote for NO...
             //generate error here...after abort, before send ...
-            logger.log(ABORT);
+            logger.log(ABORT, command, song, URL);
             this.abort(command);
             this.broadcastMessage(yesVoteList, messageType.ABORT);
 
