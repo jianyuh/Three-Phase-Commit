@@ -44,6 +44,7 @@ public class Config {
 		}
 		if (prop.getProperty("ProcNum") != null) {
 			procNum = loadInt(prop,"ProcNum");		//there is an error here
+                        System.out.println("I am Proc:"+procNum);
 		} else {
 			logger.info("procNum not loaded from file");
 		}

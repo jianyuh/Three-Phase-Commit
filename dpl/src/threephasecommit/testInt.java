@@ -8,13 +8,17 @@ package threephasecommit;
  *
  * @author xwang
  */
-public class test00 {
+public class testInt {
         public static void main(String[] args) {
         ParticipantProcess participant = new ParticipantProcess("config0.txt");
-                participant.ProcessStartProtocol();
-        //participant.CoordinatorCommitProtocol();
-        participant.playList.printPlayList();
         
+        //participant.upList.add("1")
+        
+        participant.updateUpListAfterRecvStateReq("0") ;
+        
+        System.out.println(participant.getUpList());
+
+
     }
     
 }
