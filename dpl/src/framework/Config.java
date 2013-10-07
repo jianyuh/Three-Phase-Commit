@@ -49,7 +49,7 @@ public class Config {
 			logger.info("procNum not loaded from file");
 		}
                 //if (prop.getProperty("logfile") != null) {
-                        logfile = prop.getProperty("logfile");
+                        log3pcfile = prop.getProperty("logfile");
                         uplistfile = prop.getProperty("uplistfile");
                 //}
 	}
@@ -91,7 +91,7 @@ public class Config {
 	 */
 	public Logger logger;
         
-        public String logfile;
+        public String log3pcfile;
         
         public String uplistfile;
 }

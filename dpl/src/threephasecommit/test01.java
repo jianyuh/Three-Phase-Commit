@@ -10,7 +10,7 @@ package threephasecommit;
  */
 public class test01 {
     public static void main(String[] args) {
-        ParticipantProcess participant = new ParticipantProcess("config1.txt");
+        ParticipantProcess participant = new ParticipantProcess("config1.txt", true);
         participant.ProcessStartProtocol();
         //participant.CoordinatorCommitProtocol();
         participant.playList.printPlayList();

@@ -8,10 +8,10 @@ package threephasecommit;
  *
  * @author jianyu
  */
-public class test02 {
+public class test021 {
     
     public static void main(String[] args) {
-        ParticipantProcess participant = new ParticipantProcess("config2.txt", true);
+        ParticipantProcess participant = new ParticipantProcess("config2.txt",false);
         //participant.CoordinatorCommitProtocol();
         //participant.ParticipantCommitProtocol();
         participant.ProcessStartProtocol();

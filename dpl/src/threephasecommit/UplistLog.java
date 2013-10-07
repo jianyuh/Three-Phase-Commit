@@ -1,6 +1,7 @@
 package threephasecommit;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -25,20 +26,10 @@ public class UplistLog {
     private File file;
     private String filePath;    
     private FileWriter fileWriter;
-    
-    public UplistLog(String filePath) throws FileNotFoundException, IOException{
-        this(new File(filePath), false);
-    }
+    private BufferedWriter outStream;
     
     public UplistLog(String filePath, boolean create) throws FileNotFoundException, IOException {
-        this(new File(filePath), create);
-    }
-    
-    public UplistLog(File file) throws FileNotFoundException, IOException {
-        this(file, false);
-    }
-    
-    public UplistLog(File file, boolean create) throws FileNotFoundException, IOException {
+        File file = new File(filePath);
         if (file == null) {
             throw new NullPointerException();
         }
@@ -54,9 +45,11 @@ public class UplistLog {
             throw new IOException("cannot write to: " + file.getPath());
         }
         
+        file.createNewFile();
+        
         this.file = file;
         this.filePath = file.getPath();
-        this.fileWriter = new FileWriter(this.file);
+        
     }
     
     public String getFilePath() {
@@ -74,6 +67,7 @@ public class UplistLog {
     }
 
     public String toStringUpListLog(SortedSet<String> UpList, String SelfProcNum) {
+        
         String uplistLog = "";
         for (String str : UpList) {
             uplistLog = uplistLog + str + "#";
@@ -124,10 +118,21 @@ public class UplistLog {
         return logtype;
     }
     
-    public boolean log(String data, String command, String song, String URL) {
+    public boolean log(SortedSet<String> UpList, String SelfProcNum) {
         try {
-            this.fileWriter.write(System.currentTimeMillis()+" "+data+" "+command+" "+song+" "+URL+"\n");
-            this.fileWriter.flush();
+            this.fileWriter = new FileWriter(this.file, false);
+        } catch (IOException ex) {
+            Logger.getLogger(UplistLog.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        this.outStream= new BufferedWriter(this.fileWriter);
+        
+        System.out.println("Enter Log Function");
+        String uplistLog = toStringUpListLog(UpList, SelfProcNum);
+        try {
+            //this.fileWriter.write(uplistLog);
+            //this.fileWriter.flush();
+            this.outStream.write(uplistLog+"\n");
+            this.outStream.flush();
         } catch(IOException e) {
             return false;
         }

@@ -84,10 +84,19 @@ public class Log {
     public void independentUpdateLog(String fileName) {
         String lastline;
         try {
+            System.out.println("Enter independentUpdateLog....");
             lastline = logread(fileName);
+            System.out.println(lastline);
             String[] argslist = lastline.split(" ");
+            
+            for (String arg: argslist) {
+                System.out.println(arg);
+            }
+            
             if (lastline != "") {
+                System.out.println("Updating now....");
                 this.fileWriter.write(System.currentTimeMillis() + " " + "ABORT" + " " + argslist[2] + " " + argslist[3] + " " + argslist[4] + "\n");
+                this.fileWriter.flush();
             }
         } catch (FileNotFoundException ex) {
             Logger.getLogger(Log.class.getName()).log(Level.SEVERE, null, ex);

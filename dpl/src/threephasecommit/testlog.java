@@ -6,6 +6,8 @@ package threephasecommit;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -15,12 +17,15 @@ import java.util.logging.Logger;
  */
 public class testlog {
     public static void main(String[] args) {
-        Log logger;
+        UplistLog logger;
+        SortedSet<String> strset = new TreeSet<String>();
         String logFile = "test.txt";
         try {
-            logger = new Log(logFile, false);
+            logger = new UplistLog(logFile, true);
             
-            logger.log("test11");
+            strset.add("1");
+            logger.log(strset,"2");
+            logger.log(strset,"2");
             
         } catch (FileNotFoundException ex) {
             Logger.getLogger(testlog.class.getName()).log(Level.SEVERE, null, ex);
