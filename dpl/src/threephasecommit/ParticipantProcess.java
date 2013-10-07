@@ -132,14 +132,23 @@ public class ParticipantProcess {
             cmdlog.info("A new process with ProcNum " + this.getProcNum() + " is recovered.");
             
             SortedSet<String> recoverUpList = new TreeSet<String> ();
-            recoverUpList = this.uplistlogger.extractUplistLog(this.config.uplistfile);
+            recoverUpList = this.uplistlogger.extractUplistLog(this.uplistlogger.logread(this.config.uplistfile)); 
+            
             
             SortedSet<String> intersectUpList = new TreeSet<String> ();
-            intersectUpList = this.uplistlogger.extractUplistLog(this.config.uplistfile);
-            
+            intersectUpList = this.uplistlogger.extractUplistLog(this.uplistlogger.logread(this.config.uplistfile));
+            System.out.println("Print the intersectUpList....");
+            for (String s : intersectUpList) {
+                System.out.println(s);
+            }
             SortedSet<String> SurviveList = new TreeSet<String> ();
             SurviveList.add(this.procNum);
 
+            System.out.println("Print the SurviveList....");
+            for (String s : intersectUpList) {
+                System.out.println(s);
+            }
+            
             boolean recv_logreply_flag = false;
             if (!this.procNum.equals(Integer.toString(this.config.numProcesses))) {
                 while (true) {
@@ -193,9 +202,22 @@ public class ParticipantProcess {
                                 //extract the UpList from the message;
                                 //get and update the intersection;
                                 intersectUpList.retainAll(uplistlogger.extractUplistLog(message.getParameter()));
+                                System.out.println("Print the message.getParameter...");
+                                System.out.println(message.getParameter());
+                                System.out.println("Print the extractUpList....");
+                                for( String s: uplistlogger.extractUplistLog(message.getParameter())) {
+                                    System.out.println(s);
+                                }
+                                System.out.println("Print the intersectUpList....");
+                                for( String s: intersectUpList) {
+                                    System.out.println(s);
+                                }
                                 //get and update the srcProcNum into a set;
                                 SurviveList.add(message.getMsgSource());
-                                
+                                System.out.println("Print the surviveList....");
+                                for( String s: SurviveList) {
+                                    System.out.println(s);
+                                }
                                 //if(the intersection set /in the srcProcNum set)    //&& myself /in the intersection set) {
                                 if (SurviveList.containsAll(intersectUpList)) {
                                     
@@ -209,11 +231,14 @@ public class ParticipantProcess {
  
                                     //broadcast(messageType: LOGREPLY, command: abort);
                                     //broadcast(messageType: REPLY,)
+                                    
                                     recv_logreply_flag = true;
-                                   }  
+                                    break;
+                                 }  
                             } else if (msgType == messageType.INQUIRY) {
                                 String uplistStr = uplistlogger.toStringUpListLog(recoverUpList, this.procNum);
                                 //reply uplist with messagetype uplistmessage containing the uplist
+                                this.parameter = uplistStr;
                                 this.sendMessage(message.getMsgSource(), messageType.UPLISTSYN);
                             } 
                         }
@@ -1184,12 +1209,15 @@ public class ParticipantProcess {
             sendMessage(this.getCurrentCoordinatorProcnum(), messageType.YES);
             cmdlog.info("after sending YES");
 
+            /*
             if (this.procNum.equals("1") && testing_flag) {
                 System.exit(0);
             }
             if (this.procNum.equals("2") && testing_flag) {
                 System.exit(0);
             }
+             * 
+             */
             /*
             if (this.getProcNum().equals("1")) {
                 System.exit(0);
@@ -1242,11 +1270,18 @@ public class ParticipantProcess {
                         // logger.log(PRE_COMMIT);
                         // you do not need to log PRE_COMMIT here
 
+                        if (this.procNum.equals("1") && testing_flag) {
+                            System.exit(0);
+                        }
+                        if (this.procNum.equals("2") && testing_flag) {
+                            System.exit(0);
+                        }
                         // send ack to coordinator
                         this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.ACK);
                         cmdlog.info("after sending ack");
                         this.state = State.COMMITTABLE;
 
+                        
                         // msg1: COMMIT or ABORT
                         startTime = System.currentTimeMillis();
                         boolean recv_commit_flag = false;
@@ -1431,9 +1466,12 @@ public class ParticipantProcess {
          * 
          */
         
+        /*
         if (this.procNum.equals("0") && testing_flag) {
             System.exit(0);
         }
+         * 
+         */
 
 
         cmdlog.info("after broadcast VOTE_REQ");
@@ -1540,6 +1578,9 @@ public class ParticipantProcess {
             logger.log(PRE_COMMIT, command, song, URL);
             this.broadcastMessage(Message.messageType.PRE_COMMIT);//I hope to add some errors when sending to nth client...
             
+            if (this.procNum.equals("0") && testing_flag) {
+                System.exit(0);
+            }
             
             /*
             if (this.getProcNum().equals("0")) {
