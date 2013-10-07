@@ -261,7 +261,7 @@ public class ParticipantProcess {
 
     }
 
-    // This function will be called uniformly by no matter 
+    // This function will be called uniformly by no matter git d
     // a coordinator or participant
     // which will automatically select someone to be a coordinator
     // and implement its role
@@ -275,6 +275,7 @@ public class ParticipantProcess {
         while (true) {
 
             upList.addAll(recoverList);
+            this.uplistlogger.toStringUpListLog(this.upList, this.procNum);
             recoverList.clear();
             
             /*
@@ -355,7 +356,7 @@ public class ParticipantProcess {
                         cmdlog.info("The received message is a RECOVERY message....");
                         String recoverProcNum = message.getMsgSource();
                         //recoverList.add(recoverProcNum);
-                        upList.add(recoverProcNum);
+                        recoverList.add(recoverProcNum);
                         cmdlog.info("The recovered ProcessNum is " + recoverProcNum);
                         cmdlog.info("I have added it to my UpList");
                     } else if (msgType == messageType.INQUIRY) {
@@ -416,6 +417,7 @@ public class ParticipantProcess {
 
     public void removeCoordinatorFromUpList() {
         this.upList.remove(this.getCurrentCoordinatorProcnum());
+        this.uplistlogger.toStringUpListLog(this.upList, this.procNum);
     }
 
     public void broadcastMessage(messageType msgType) {
@@ -506,7 +508,7 @@ public class ParticipantProcess {
     }
 
     public void abort(String command) {
-        System.out.println("ABORT");
+        //System.out.println("ABORT");
     }
 
     public void CoordinatorTerminationProtocol() {
@@ -602,6 +604,7 @@ public class ParticipantProcess {
         }
         
         upList.retainAll(VoteList);
+        this.uplistlogger.toStringUpListLog(this.upList, this.procNum);
 
         // Now, the new coordinator will make the decision 
         // according to the collected information from the participants
@@ -1313,7 +1316,7 @@ public class ParticipantProcess {
             DifSet.add(Integer.toString(i));
         }
         this.upList.removeAll(DifSet);
-
+        this.uplistlogger.toStringUpListLog(this.upList, this.procNum);
     }
 
     //send VOTE_REQ
@@ -1440,6 +1443,7 @@ public class ParticipantProcess {
         //upList.clear();
         //upList.addAll(yesVoteList);
         upList.retainAll(VoteList);
+        this.uplistlogger.toStringUpListLog(this.upList, this.procNum);
         
         //upList=yesVoteList;
 
@@ -1538,6 +1542,7 @@ public class ParticipantProcess {
             }
             
             upList.retainAll(VoteList);
+            this.uplistlogger.toStringUpListLog(this.upList, this.procNum);
 
             cmdlog.info("after receive ack");
             //ACK is not received for all. Just ignore....continue to send commit...
