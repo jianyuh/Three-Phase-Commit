@@ -10,6 +10,8 @@ package threephasecommit;
 import framework.Config;
 import framework.NetController;
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
@@ -31,6 +33,7 @@ public class ParticipantProcess {
     private Config config;
     private NetController nc;
     private Log logger;
+    private UplistLog uplistlogger;
     private Logger cmdlog;
     private String procNum;
     private String currentCoordinatorProcnum;      //I don't know whether it is OK? like a point?
@@ -38,6 +41,7 @@ public class ParticipantProcess {
     public PlayList playList;
     //private SortedSet<ParticipantProcess> upList;              //Do we need recoverList??
     private SortedSet<String> upList;
+    private SortedSet<String> replyList;
     private SortedSet<String> recoverList;
     private SortedSet<String> broadcastList;
     private String command;
@@ -52,6 +56,7 @@ public class ParticipantProcess {
     //lookup table? ProcNum->Port???
     public static int CTIMEOUT = 5000; //Is this too short??
     public static int PTIMEOUT = 10000;
+    public static final String INITIAL = "INITIAL";
     public static final String START = "Start-3PC";
     public static final String PRE_COMMIT = "PRE_COMMIT";
     public static final String COMMIT = "COMMIT";
@@ -83,11 +88,7 @@ public class ParticipantProcess {
                     broadcastList.add(Integer.toString(i));
                 }
             }
-            upList = broadcastList;
-            System.out.print("Uplist: ");
-            for (String s : this.upList) {
-                System.out.println(s + " ");
-            }
+
             // How to generate upList??
             /*
             for (int i = 0; i < config.numProcesses; i++) {
@@ -106,7 +107,7 @@ public class ParticipantProcess {
 
 
             // This is the default setup for the current coordinator
-            currentCoordinatorProcnum = "0";
+            currentCoordinatorProcnum = "-1";
 
             //command = "add"; // do not know why
             vote = true;
@@ -114,19 +115,149 @@ public class ParticipantProcess {
 
             System.out.println("logfile:" + this.config.logfile);
             String logFile = this.config.logfile;
+            String uplistlogFile = this.config.uplistfile;
             this.logger = new Log(logFile, true);
+            this.uplistlogger = new UplistLog(uplistlogFile, true);
 
             this.state = State.ABORTED;
             cmdlog.info("A new process with ProcNum " + this.getProcNum() + " is recovered.");
+            
+            SortedSet<String> recoverUpList = new TreeSet<String> ();
+            recoverUpList = this.uplistlogger.extractUplistLog(this.config.uplistfile);
+            
+            SortedSet<String> intersectUpList = new TreeSet<String> ();
+            intersectUpList = this.uplistlogger.extractUplistLog(this.config.uplistfile);
+            
+            SortedSet<String> SurviveList = new TreeSet<String> ();
+            SurviveList.add(this.procNum);
 
+            boolean recv_logreply_flag = false;
             if (!this.procNum.equals(Integer.toString(this.config.numProcesses))) {
-                // Broadcast the RECOVERY message to all the processes
-                this.broadcastMessage(this.getBroadcastList(), messageType.RECOVERY);
-                cmdlog.info("A new process with ProcNum " + this.getProcNum() + " has reported RECOVERY to all other processes.");
+                while (true) {
+                    //==null or == ""???????????????
+                    if (logger.logread(this.config.logfile) == "") {
+                        break;
+                    } else if (isIndependable() == 1) { 
+                        // Broadcast the RECOVERY message to all the processes
+                        this.broadcastMessage(this.getBroadcastList(), messageType.RECOVERY);
+                        cmdlog.info("A new process with ProcNum " + this.getProcNum() + " has reported RECOVERY to all other processes.");
+                        logger.independentUpdateLog(this.config.logfile);
+
+                        UpdatePlayListByLog();
+
+                        //this.abort(command);
+                        break;
+
+                    } else if (isIndependable() == 2) {
+                        this.broadcastMessage(this.getBroadcastList(), messageType.RECOVERY);
+                        cmdlog.info("A new process with ProcNum " + this.getProcNum() + " has reported RECOVERY to all other processes.");
+                        UpdatePlayListByLog();
+                        break;
+                    } else {
+                        this.broadcastMessage(this.getBroadcastList(), messageType.RECOVERY);
+                        cmdlog.info("A new process with ProcNum " + this.getProcNum() + " has reported RECOVERY to all other processes.");
+                        this.broadcastMessage(this.getBroadcastList(), messageType.INQUIRY);
+
+                        Message message = new Message();
+                        for (String msg : nc.getReceivedMsgs()) {
+                            cmdlog.info("get some message...");
+                            message.extractMessage(msg);
+                            message.printMessage();
+
+                            messageType msgType = message.getMsgType();
+                            if (msgType == messageType.REPLY) {
+                                this.playList.extractPlayList(message.getParameter());
+                                recv_logreply_flag = true;
+                            } else if (msgType == messageType.LOGREPLY) {
+                                recv_logreply_flag = true;
+                                logger.log(message.getParameter()); 
+                            } else if (msgType == messageType.UPLISTSYN) {
+                                //extract the UpList from the message;
+                                //get and update the intersection;
+                                intersectUpList.retainAll(uplistlogger.extractUplistLog(message.getParameter()));
+                                //get and update the srcProcNum into a set;
+                                SurviveList.add(message.getMsgSource());
+                                
+                                //if(the intersection set /in the srcProcNum set)    //&& myself /in the intersection set) {
+                                if (SurviveList.containsAll(intersectUpList)) {
+                                    
+                                    String lastline = this.logger.logread(this.config.logfile);
+                                    String [] argslist = lastline.split(" ");
+                            
+                                    //update log + abort;
+                                    this.logger.log("ABORT", argslist[2], argslist[3], argslist[4]);
+                                    //updateplaybylog
+                                    UpdatePlayListByLog();
+ 
+                                    //broadcast(messageType: LOGREPLY, command: abort);
+                                    //broadcast(messageType: REPLY,)
+                                    recv_logreply_flag = true;
+                                   }  
+                            } else if (msgType == messageType.INQUIRY) {
+                                String uplistStr = uplistlogger.toStringUpListLog(recoverUpList, this.procNum);
+                                //reply uplist with messagetype uplistmessage containing the uplist
+                                this.sendMessage(message.getMsgSource(), messageType.UPLISTSYN);
+                            } 
+                        }
+                        
+                        if(recv_logreply_flag) {
+                            break;
+                        }
+
+                    }
+                }
+
+
+
             }
+            
+            upList = broadcastList;
+            System.out.print("Uplist: ");
+            for (String s : this.upList) {
+                System.out.println(s + " ");
+            }
+
         } catch (IOException e) {
             System.out.println(e);
         }
+
+    }
+    
+    public void UpdatePlayListByLog() throws FileNotFoundException, IOException {
+        BufferedReader input = new BufferedReader(new FileReader(this.config.logfile));
+        String line;
+        while ((line = input.readLine()) != null) {
+
+            String[] argslist = line.split(" ");
+            String logtype = argslist[1];
+            if (argslist[1].equals(COMMIT)) {
+                commit(command, song, URL);
+            }
+        }
+    }
+
+    
+    //1: add log && send recovery && update playlist   2:send recovery  3. send recovery && send inquiry 
+    public int isIndependable() {
+        String logLastLine;
+        try {
+            logLastLine = logger.logread(this.config.logfile);
+            
+            String logtype = logger.extractLogType(logLastLine);
+            
+                    
+        if (logtype.equals(INITIAL) || logtype.equals(START)) {
+            return 1;
+        } else if (logtype.equals(COMMIT) || logtype.equals(ABORT)) {
+            return 2;
+        } 
+            
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(ParticipantProcess.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(ParticipantProcess.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return 3;
 
     }
 
@@ -136,17 +267,59 @@ public class ParticipantProcess {
     // and implement its role
     public void ProcessStartProtocol() {
         Message message = new Message();
-
+        
+        
+        System.out.println("I will print the PlayList: ");
+        this.playList.printPlayList();
         cmdlog.info("The process with ProcNum " + this.getProcNum() + " is started.");
         while (true) {
 
-
             upList.addAll(recoverList);
             recoverList.clear();
+            
+            /*
+            if(this.currentCoordinatorProcnum.equals(this.getProcNum())) {
+                
+                this.parameter = this.playList.toStringPlayList();
+                broadcastMessage(this.replyList,messageType.REPLY);
+                try {
+                    this.parameter = logger.logread(this.config.logfile);
+                } catch (FileNotFoundException ex) {
+                    Logger.getLogger(ParticipantProcess.class.getName()).log(Level.SEVERE, null, ex);
+                } catch (IOException ex) {
+                    Logger.getLogger(ParticipantProcess.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                broadcastMessage(this.replyList,messageType.LOGREPLY);
+ 
+            } else {
+                send Uplist;
+                
+            }
+             * 
+             */
+            
+            //replyList.clear();
 
             cmdlog.info("wait for initial signal or the RECOVERY message from recovered processes...");
             boolean recv_initial_flag = false;
+            boolean recv_logreply_flag = false;
+            long startTime = System.currentTimeMillis();
+      
             while (!recv_initial_flag) {
+
+                /*
+                long endTime = System.currentTimeMillis();
+                if (endTime - startTime >= RTIMEOUT && this.currentCoordinatorProcnum == "-1" && !recv_logreply_flag) {
+                    if(the intersection set /in the srcProcNum set && myself /in the intersection set) {
+                        send the processes in the intersection set; 
+                        update my uplist = intersection/myself; 
+                        electionProtocol;
+                        
+                    }
+                }
+                 * 
+                 */
+
                 for (String msg : nc.getReceivedMsgs()) {
                     cmdlog.info("get some message...");
                     message.extractMessage(msg);
@@ -155,7 +328,7 @@ public class ParticipantProcess {
                     messageType msgType = message.getMsgType();
                     if (msgType == messageType.INITIAL) {
                         cmdlog.info("The received message is an INITIAL message...");
-
+                        
                         recv_initial_flag = true;
                         this.command = message.getMsgCommand();//////////////////////////later we should assert(msg.command == this.command)???
                         cmdlog.info("This INITIAL message contains the command " + this.command);
@@ -170,6 +343,8 @@ public class ParticipantProcess {
                         this.parameter = message.getParameter();
                         cmdlog.info("The manager wants to set the process with ProcNum " + str[2] + " to be the coordinator");
 
+                        logger.log(INITIAL, command, song, URL);
+                        
                         if (this.getCurrentCoordinatorProcnum().equals(this.getProcNum())) {
                             this.CoordinatorCommitProtocol();
                         } else {
@@ -183,7 +358,36 @@ public class ParticipantProcess {
                         upList.add(recoverProcNum);
                         cmdlog.info("The recovered ProcessNum is " + recoverProcNum);
                         cmdlog.info("I have added it to my UpList");
-                    }
+                    } else if (msgType == messageType.INQUIRY) {
+                        cmdlog.info("The received message is a INQUIRY message....");
+                        String inquiryProcNum = message.getMsgSource();
+                        this.parameter = this.playList.toStringPlayList();
+                        this.sendMessage(inquiryProcNum,messageType.REPLY);
+                        try {
+                            this.parameter = logger.logread(this.config.logfile);
+                        } catch (FileNotFoundException ex) {
+                            Logger.getLogger(ParticipantProcess.class.getName()).log(Level.SEVERE, null, ex);
+                        } catch (IOException ex) {
+                            Logger.getLogger(ParticipantProcess.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                        this.sendMessage(inquiryProcNum,messageType.LOGREPLY);
+                        //recoverList.add(recoverProcNum);
+                        //replyList.add(inquiryProcNum);
+                        //cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                        //cmdlog.info("I have added it to my replyList");
+                    } /*else if (msgType == messageType.REPLY) {
+                        this.playList.extractPlayList(message.getParameter());        
+                    } else if (msgType == messageType.LOGREPLY) {
+                        recv_logreply_flag = true;
+                        logger.log(message.getParameter(), command, song, URL);
+                    } else if (msgType == messageType.TOTALFAILURE) {
+                        extract the UpList from the message;
+                        get and update the intersection; 
+                        
+                        get and update the srcProcNum into a set;
+                        
+                        
+                    }*/
                 }
             }
         }
@@ -289,7 +493,7 @@ public class ParticipantProcess {
         return this.vote;
     }
 
-    public void commit(String command) {
+    public void commit(String command, String song, String URL) {
         //just add song, url to the playList;
         if (command == "add") {
             playList.add(song, URL);
@@ -386,7 +590,14 @@ public class ParticipantProcess {
                     state_report_count--;
                 } else if (msgType == messageType.RECOVERY) {
                     this.recoverList.add(message.getMsgSource());
-                }
+                } /*else if (msgType == messageType.INQUIRY) {
+                    cmdlog.info("The received message is a INQUIRY message....");
+                    String inquiryProcNum = message.getMsgSource();
+                    //recoverList.add(recoverProcNum);
+                    //replyList.add(inquiryProcNum);
+                    cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                    cmdlog.info("I have added it to my replyList");
+                }*/
             }
         }
         
@@ -415,7 +626,7 @@ public class ParticipantProcess {
             // if not, it will log commit
             cmdlog.info("TR 2 entered.");
             logger.log(COMMIT, command, song, URL);
-            this.commit(command);
+            this.commit(command, song, URL);
             this.broadcastMessage(messageType.COMMIT);
         } // TR 3
         else if (this.state == State.UNCERTAIN && !ExistCommittable) {
@@ -447,11 +658,18 @@ public class ParticipantProcess {
                         ACKcount--;
                     } else if (msgType == messageType.RECOVERY) {
                         this.recoverList.add(message.getMsgSource());
-                    }
+                    } /*else if (msgType == messageType.INQUIRY) {
+                        cmdlog.info("The received message is a INQUIRY message....");
+                        String inquiryProcNum = message.getMsgSource();
+                        //recoverList.add(recoverProcNum);
+                        replyList.add(inquiryProcNum);
+                        cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                        cmdlog.info("I have added it to my replyList");
+                    }*/
                 }
             }
             logger.log(COMMIT, command, song, URL);
-            this.commit(command);
+            this.commit(command, song, URL);
             this.broadcastMessage(messageType.COMMIT);
         }
     }
@@ -462,6 +680,7 @@ public class ParticipantProcess {
         while (true) {
             String line = null;
             try {
+
                 System.out.println("input:");
                 BufferedReader bufferRead = new BufferedReader(new InputStreamReader(System.in));
                 line = bufferRead.readLine();
@@ -570,7 +789,14 @@ public class ParticipantProcess {
                     break;
                 } else if (msgType == messageType.RECOVERY) {
                     this.recoverList.add(message.getMsgSource());
-                } else if (msgType == messageType.STATE_REQ) {
+                } /*else if (msgType == messageType.INQUIRY) {
+                    cmdlog.info("The received message is a INQUIRY message....");
+                    String inquiryProcNum = message.getMsgSource();
+                    //recoverList.add(recoverProcNum);
+                    replyList.add(inquiryProcNum);
+                    cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                    cmdlog.info("I have added it to my replyList");
+                }*/ else if (msgType == messageType.STATE_REQ) {
                     ParticipantTerminationProtocol_recvStateReq(message.getMsgSource());
                     return;
                 }
@@ -599,7 +825,7 @@ public class ParticipantProcess {
                 msgType = message.getMsgType();
                 if (msgType == messageType.COMMIT) {
                     logger.log(COMMIT, command, song, URL);
-                    this.commit(this.command);
+                    this.commit(this.command, song, URL);
                     return;
                 } else if (msgType == messageType.UR_ELECTED) {
                     this.removeCoordinatorFromUpList();
@@ -610,7 +836,14 @@ public class ParticipantProcess {
                     return;
                 } else if (msgType == messageType.RECOVERY) {
                     this.recoverList.add(message.getMsgSource());
-                } else if (msgType == messageType.STATE_REQ) {
+                } /*else if (msgType == messageType.INQUIRY) {
+                    cmdlog.info("The received message is a INQUIRY message....");
+                    String inquiryProcNum = message.getMsgSource();
+                    //recoverList.add(recoverProcNum);
+                    replyList.add(inquiryProcNum);
+                    cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                    cmdlog.info("I have added it to my replyList");
+                }*/ else if (msgType == messageType.STATE_REQ) {
                     ParticipantTerminationProtocol_recvStateReq(message.getMsgSource());
                     return;
                 }
@@ -674,7 +907,14 @@ public class ParticipantProcess {
                     return;
                 } else if (msgType == messageType.RECOVERY) {
                     this.recoverList.add(message.getMsgSource());
-                } else if (msgType == messageType.STATE_REQ) {
+                } /*else if (msgType == messageType.INQUIRY) {
+                    cmdlog.info("The received message is a INQUIRY message....");
+                    String inquiryProcNum = message.getMsgSource();
+                    //recoverList.add(recoverProcNum);
+                    replyList.add(inquiryProcNum);
+                    cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                    cmdlog.info("I have added it to my replyList");
+                }*/ else if (msgType == messageType.STATE_REQ) {
                     ParticipantTerminationProtocol_recvStateReq(message.getMsgSource());
                     return;
                 }
@@ -722,7 +962,14 @@ public class ParticipantProcess {
                     break;
                 } else if (msgType == messageType.RECOVERY) {
                     this.recoverList.add(message.getMsgSource());
-                } else if (msgType == messageType.STATE_REQ) {
+                } /*else if (msgType == messageType.INQUIRY) {
+                    cmdlog.info("The received message is a INQUIRY message....");
+                    String inquiryProcNum = message.getMsgSource();
+                    //recoverList.add(recoverProcNum);
+                    replyList.add(inquiryProcNum);
+                    cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                    cmdlog.info("I have added it to my replyList");
+                }*/ else if (msgType == messageType.STATE_REQ) {
                     ParticipantTerminationProtocol_recvStateReq(message.getMsgSource());
                     return;
                 }
@@ -761,7 +1008,14 @@ public class ParticipantProcess {
                     return;
                 } else if (msgType == messageType.RECOVERY) {
                     this.recoverList.add(message.getMsgSource());
-                } else if (msgType == messageType.STATE_REQ) {
+                } /*else if (msgType == messageType.INQUIRY) {
+                    cmdlog.info("The received message is a INQUIRY message....");
+                    String inquiryProcNum = message.getMsgSource();
+                    //recoverList.add(recoverProcNum);
+                    replyList.add(inquiryProcNum);
+                    cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                    cmdlog.info("I have added it to my replyList");
+                }*/ else if (msgType == messageType.STATE_REQ) {
                     ParticipantTerminationProtocol_recvStateReq(message.getMsgSource());
                     return;
                 }
@@ -863,7 +1117,14 @@ public class ParticipantProcess {
                     // because the processes are doing somthing now!
                 } else if (msgType == messageType.RECOVERY) {
                     this.recoverList.add(message.getMsgSource());
-                } else if (msgType == messageType.STATE_REQ) {
+                } /*else if (msgType == messageType.INQUIRY) {
+                    cmdlog.info("The received message is a INQUIRY message....");
+                    String inquiryProcNum = message.getMsgSource();
+                    //recoverList.add(recoverProcNum);
+                    replyList.add(inquiryProcNum);
+                    cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                    cmdlog.info("I have added it to my replyList");
+                }*/ else if (msgType == messageType.STATE_REQ) {
                     ParticipantTerminationProtocol_recvStateReq(message.getMsgSource());
                     return;
                 }
@@ -881,7 +1142,7 @@ public class ParticipantProcess {
             sendMessage(this.getCurrentCoordinatorProcnum(), messageType.YES);
             cmdlog.info("after sending YES");
 
-
+            /*
             if (this.getProcNum().equals("1")) {
                 System.exit(0);
             }
@@ -889,6 +1150,8 @@ public class ParticipantProcess {
             if (this.getProcNum().equals("2")) {
                 System.exit(0);
             }
+             * 
+             */
         
             // try to receive the PRE_COMMIT signal
             startTime = System.currentTimeMillis();
@@ -967,7 +1230,7 @@ public class ParticipantProcess {
                                     cmdlog.info("receive commit");
                                     logger.log(COMMIT, command, song, URL);
                                     this.state = State.COMMITTED;
-                                    this.commit(command);
+                                    this.commit(command, song, URL);
                                     return;
                                     //continue initial_state;
                                 } else if (msgType == messageType.UR_ELECTED) {
@@ -980,7 +1243,14 @@ public class ParticipantProcess {
                                     //continue initial_state;
                                 } else if (msgType == messageType.RECOVERY) {
                                     this.recoverList.add(message.getMsgSource());
-                                } else if (msgType == messageType.STATE_REQ) {
+                                } /*else if (msgType == messageType.INQUIRY) {
+                                    cmdlog.info("The received message is a INQUIRY message....");
+                                    String inquiryProcNum = message.getMsgSource();
+                                    //recoverList.add(recoverProcNum);
+                                    replyList.add(inquiryProcNum);
+                                    cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                                    cmdlog.info("I have added it to my replyList");
+                                }*/ else if (msgType == messageType.STATE_REQ) {
                                     ParticipantTerminationProtocol_recvStateReq(message.getMsgSource());
                                     return;
                                 }
@@ -1003,10 +1273,17 @@ public class ParticipantProcess {
                         //continue initial_state;
                     } else if (msgType == messageType.RECOVERY) {
                         this.recoverList.add(message.getMsgSource());
-                    } else if (msgType == messageType.STATE_REQ) {
+                    } /*else if (msgType == messageType.INQUIRY) {
+                        cmdlog.info("The received message is a INQUIRY message....");
+                        String inquiryProcNum = message.getMsgSource();
+                        //recoverList.add(recoverProcNum);
+                        replyList.add(inquiryProcNum);
+                        cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                        cmdlog.info("I have added it to my replyList");
+                    }*/ else if (msgType == messageType.STATE_REQ) {
                         ParticipantTerminationProtocol_recvStateReq(message.getMsgSource());
                         return;
-                    } 
+                    }
                 }
             }
 
@@ -1147,7 +1424,14 @@ public class ParticipantProcess {
                     //Do we need to continue ???
                 } else if (msgType == messageType.RECOVERY) {
                     this.recoverList.add(message.getMsgSource());
-                }
+                } /*else if (msgType == messageType.INQUIRY) {
+                    cmdlog.info("The received message is a INQUIRY message....");
+                    String inquiryProcNum = message.getMsgSource();
+                    //recoverList.add(recoverProcNum);
+                    replyList.add(inquiryProcNum);
+                    cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                    cmdlog.info("I have added it to my replyList");
+                }*/
             }
         }
         cmdlog.info("after receive vote");
@@ -1199,10 +1483,12 @@ public class ParticipantProcess {
             this.broadcastMessage(Message.messageType.PRE_COMMIT);//I hope to add some errors when sending to nth client...
             
             
-            
+            /*
             if (this.getProcNum().equals("0")) {
                 System.exit(0);
             }
+             * 
+             */
             
             
             
@@ -1240,7 +1526,14 @@ public class ParticipantProcess {
                         voteCount--;
                     } else if (msgType == messageType.RECOVERY) {
                         this.recoverList.add(message.getMsgSource());
-                    }
+                    } /*else if (msgType == messageType.INQUIRY) {
+                        cmdlog.info("The received message is a INQUIRY message....");
+                        String inquiryProcNum = message.getMsgSource();
+                        //recoverList.add(recoverProcNum);
+                        replyList.add(inquiryProcNum);
+                        cmdlog.info("The inquiry ProcessNum is " + inquiryProcNum);
+                        cmdlog.info("I have added it to my replyList");
+                    }*/
                 }
             }
             
@@ -1251,7 +1544,7 @@ public class ParticipantProcess {
 
             //commit
             logger.log(COMMIT, command, song, URL);
-            this.commit(command);//execute the command....
+            this.commit(command,song, URL);//execute the command....
             //System.out.println(COMMIT);
 
             //error here..after commit....

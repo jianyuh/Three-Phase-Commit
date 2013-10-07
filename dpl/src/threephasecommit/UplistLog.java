@@ -6,6 +6,8 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -18,25 +20,25 @@ import java.util.logging.Logger;
  *
  *
  */
-public class Log {
+public class UplistLog {
     
     private File file;
     private String filePath;    
     private FileWriter fileWriter;
     
-    public Log(String filePath) throws FileNotFoundException, IOException{
+    public UplistLog(String filePath) throws FileNotFoundException, IOException{
         this(new File(filePath), false);
     }
     
-    public Log(String filePath, boolean create) throws FileNotFoundException, IOException {
+    public UplistLog(String filePath, boolean create) throws FileNotFoundException, IOException {
         this(new File(filePath), create);
     }
     
-    public Log(File file) throws FileNotFoundException, IOException {
+    public UplistLog(File file) throws FileNotFoundException, IOException {
         this(file, false);
     }
     
-    public Log(File file, boolean create) throws FileNotFoundException, IOException {
+    public UplistLog(File file, boolean create) throws FileNotFoundException, IOException {
         if (file == null) {
             throw new NullPointerException();
         }
@@ -54,11 +56,30 @@ public class Log {
         
         this.file = file;
         this.filePath = file.getPath();
-        this.fileWriter = new FileWriter(this.file, true);
+        this.fileWriter = new FileWriter(this.file);
     }
     
     public String getFilePath() {
         return this.filePath;
+    }
+    
+    //may be some problem...
+    public SortedSet<String> extractUplistLog(String UplistLog){
+        TreeSet <String> UpList = new TreeSet <String>();
+        String[] temp  = UplistLog.split("#");
+        for (String s: temp) {
+            UpList.add(s);
+        }
+        return UpList;
+    }
+
+    public String toStringUpListLog(SortedSet<String> UpList, String SelfProcNum) {
+        String uplistLog = "";
+        for (String str : UpList) {
+            uplistLog = uplistLog + str + "#";
+        }
+        uplistLog = uplistLog + SelfProcNum;
+        return uplistLog;
     }
 
     /*
@@ -112,16 +133,6 @@ public class Log {
         }
         return true;
         
-    }
-    
-    public boolean log(String parameter) {
-        try {
-            this.fileWriter.write(parameter);
-            this.fileWriter.flush();
-        } catch(IOException e) {
-            return false;
-        }
-        return true;
     }
     
 }

@@ -50,6 +50,7 @@ public class Config {
 		}
                 //if (prop.getProperty("logfile") != null) {
                         logfile = prop.getProperty("logfile");
+                        uplistfile = prop.getProperty("uplistfile");
                 //}
 	}
 	
@@ -91,4 +92,6 @@ public class Config {
 	public Logger logger;
         
         public String logfile;
+        
+        public String uplistfile;
 }

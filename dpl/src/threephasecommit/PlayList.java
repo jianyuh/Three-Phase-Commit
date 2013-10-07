@@ -23,21 +23,39 @@ public class PlayList {
     }
     
     //delete just songName??
-    void delete(String songName, String URL){
+    public void delete(String songName, String URL){
         if(playList.containsKey(songName)){
             playList.remove(songName);
         }
     }
     
-    void edit(String songName, String URL) {
+    public void edit(String songName, String URL) {
         if(playList.contains(songName)) {
             playList.remove(songName);
             playList.put(songName, URL);
         }
     }
     
+    public String toStringPlayList() {
+          StringBuilder sb = new StringBuilder();
+          String splittag = "";
+        for (String songName: playList.keySet()) {
+            sb.append(songName+":"+playList.get(songName)+splittag);
+            splittag = "\n";
+        }
+        return sb.toString();
+    }
     
-    void printPlayList(){
+    public void extractPlayList(String str) {
+        String [] hashpairs = str.split("\n");
+        for (String hashpair: hashpairs) {
+            String keyvalue [] = hashpair.split(":");
+            playList.put(keyvalue[0], keyvalue[1]);
+        }
+    }
+    
+    
+    public void printPlayList(){
         for (String songName: playList.keySet()) {
             System.out.println(songName+":"+playList.get(songName));
         }
