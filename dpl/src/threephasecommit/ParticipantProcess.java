@@ -178,8 +178,12 @@ public class ParticipantProcess {
             }
 
             boolean recv_logreply_flag = false;
+            boolean recv_reply1_flag = false;
+            boolean recv_logreply1_flag = false;
+
             if (!this.procNum.equals(Integer.toString(this.config.numProcesses))) {
                 while (true) {
+
                     //==null or == ""???????????????
                     if (logger.logread(this.config.log3pcfile).equals("")) {
                         this.upList = broadcastList;
@@ -217,15 +221,26 @@ public class ParticipantProcess {
                             message.printMessage();
 
                             messageType msgType = message.getMsgType();
-                            if (msgType == messageType.REPLY) {
+                            if (msgType == messageType.REPLY && !recv_reply1_flag) {
+                                
+                                
                                 this.playList.extractPlayList(message.getParameter());
                                 this.upList.add(message.getMsgSource());
                                 recv_logreply_flag = true;
                                 this.playList.printPlayList();
-                            } else if (msgType == messageType.LOGREPLY) {
+                                recv_reply1_flag = true;
+                                if (recv_logreply1_flag) {
+                                    break;
+                                }
+                            } else if (msgType == messageType.LOGREPLY && !recv_logreply1_flag) {
+                                
                                 this.upList.add(message.getMsgSource());
                                 recv_logreply_flag = true;
                                 logger.log(message.getParameter());
+                                recv_logreply1_flag = true;
+                                if(recv_reply1_flag) {
+                                    break;
+                                }
                             } else if (msgType == messageType.UPLISTSYN) {
                                 //extract the UpList from the message;
                                 //get and update the intersection;
@@ -578,7 +593,7 @@ public class ParticipantProcess {
     //override...ProcNum: broadcast message to ProcNum, and then fail....
     public void broadcastMessage(Set<String> recipients, messageType msgType, String command, String parameter, String ProcNum) {
         for (String p : recipients) {
-            if (p != ProcNum) {
+            if (!p.equals(ProcNum)) {
                 continue;
             }
             Message msg = new Message(msgType, this.procNum, p, command, parameter);
@@ -956,11 +971,13 @@ public class ParticipantProcess {
                     // you need to first check whether the log contains the ABORT record 
                     // for the current command
                     logger.log(ABORT, command, song, URL);
+                    this.abort(command);
                     return;
                 } else if (msgType == messageType.COMMIT) {
                     // you need to first check whether the log contains the C record 
                     // for the current command
                     logger.log(COMMIT, command, song, URL);
+                    this.commit(command, song, URL);
                     return;
                 } else if (msgType == messageType.PRE_COMMIT) {
                     this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.ACK);
@@ -1137,11 +1154,13 @@ public class ParticipantProcess {
                     // you need to first check whether the log contains the ABORT record 
                     // for the current command
                     logger.log(ABORT, command, song, URL);
+                    this.abort(command);
                     return;
                 } else if (msgType == messageType.COMMIT) {
                     // you need to first check whether the log contains the C record 
                     // for the current command
                     logger.log(COMMIT, command, song, URL);
+                    this.commit(command, song, URL);
                     return;
                 } else if (msgType == messageType.PRE_COMMIT) {
                     this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.ACK);
@@ -1185,6 +1204,7 @@ public class ParticipantProcess {
                 msgType = message.getMsgType();
                 if (msgType == messageType.COMMIT) {
                     logger.log(COMMIT, command, song, URL);
+                    this.commit(command, song, URL);
                     return;
                 } else if (msgType == messageType.UR_ELECTED) {
                     this.removeCoordinatorFromUpList();
@@ -1600,7 +1620,7 @@ public class ParticipantProcess {
         // the coordinator can begin 3PC 
 
 
-        if (this.coordinatorfailure_case1_flag && this.procNum.equals(0)) {
+        if (this.coordinatorfailure_case1_flag && this.procNum.equals("0")) {
             System.exit(0);
         }
 
