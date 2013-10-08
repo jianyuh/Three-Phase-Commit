@@ -24,19 +24,8 @@ public class Log {
     private String filePath;    
     private FileWriter fileWriter;
     
-    public Log(String filePath) throws FileNotFoundException, IOException{
-        this(new File(filePath), false);
-    }
-    
     public Log(String filePath, boolean create) throws FileNotFoundException, IOException {
-        this(new File(filePath), create);
-    }
-    
-    public Log(File file) throws FileNotFoundException, IOException {
-        this(file, false);
-    }
-    
-    public Log(File file, boolean create) throws FileNotFoundException, IOException {
+        File file = new File(filePath);
         if (file == null) {
             throw new NullPointerException();
         }

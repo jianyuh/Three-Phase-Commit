@@ -250,8 +250,6 @@ public class ParticipantProcess {
                     }
                 }
 
-
-
             }
             
             //upList = broadcastList;
@@ -402,6 +400,10 @@ public class ParticipantProcess {
 
                         logger.log(INITIAL, command, song, URL);
                         
+                        
+                        
+                        this.state = State.ABORTED;
+                        
                         if (this.getCurrentCoordinatorProcnum().equals(this.getProcNum())) {
                             this.CoordinatorCommitProtocol();
                         } else {
@@ -445,8 +447,13 @@ public class ParticipantProcess {
                         
                         get and update the srcProcNum into a set;
                         
-                        
-                    }*/
+                    }*/ else if(msgType == messageType.STATE_REQ) {
+                        if(this.state == State.COMMITTED) {
+                            this.sendMessage(message.getMsgSource(), messageType.COMMITTED);
+                        } else if(this.state == State.ABORTED) {
+                            this.sendMessage(message.getMsgSource(), messageType.ABORTED);
+                        }   
+                    }
                 }
             }
         }
@@ -1270,12 +1277,15 @@ public class ParticipantProcess {
                         // logger.log(PRE_COMMIT);
                         // you do not need to log PRE_COMMIT here
 
+                        /*
                         if (this.procNum.equals("1") && testing_flag) {
                             System.exit(0);
                         }
                         if (this.procNum.equals("2") && testing_flag) {
                             System.exit(0);
                         }
+                         * 
+                         */
                         // send ack to coordinator
                         this.sendMessage(this.getCurrentCoordinatorProcnum(), messageType.ACK);
                         cmdlog.info("after sending ack");
@@ -1578,9 +1588,12 @@ public class ParticipantProcess {
             logger.log(PRE_COMMIT, command, song, URL);
             this.broadcastMessage(Message.messageType.PRE_COMMIT);//I hope to add some errors when sending to nth client...
             
+            /*
             if (this.procNum.equals("0") && testing_flag) {
                 System.exit(0);
             }
+             * 
+             */
             
             /*
             if (this.getProcNum().equals("0")) {
