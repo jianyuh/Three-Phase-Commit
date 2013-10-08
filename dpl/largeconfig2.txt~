@@ -1,4 +1,4 @@
-NumProcesses = 4
+NumProcesses = 3
 port0 = 10000
 port1 = 10001
 port2 = 10002

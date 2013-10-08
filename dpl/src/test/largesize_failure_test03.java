@@ -13,9 +13,9 @@ import threephasecommit.*;
 public class largesize_failure_test03 {
         public static void main(String[] args) {
         ParticipantProcess participant = new ParticipantProcess("largeconfig3.txt", "testfile0.txt");
-        //participant.ProcessStartProtocol();
+        participant.ProcessStartProtocol();
         //participant.CoordinatorCommitProtocol();
-        participant.Managerprocess();
+        //participant.Managerprocess();
         
     }
     

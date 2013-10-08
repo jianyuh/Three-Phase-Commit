@@ -53,11 +53,6 @@ public class ParticipantProcess {
     //boolean cascadingcoordinatorfailure_case2_flag = false;
     
     
-    
-    
-    
-    
-    
     private Config config;
     private NetController nc;
     private Log logger;
@@ -663,10 +658,14 @@ public class ParticipantProcess {
         this.broadcastMessage(messageType.STATE_REQ, this.command, this.parameter);
 
 
-        if (this.totalfailure_case2_flag && this.procNum.equals("1")) {
+        if (this.totalfailure_case2_flag && this.procNum.equals("1") && runtimes >= 3) {
             System.exit(0);
         }
 
+        if (this.cascadingcoordinatorfailure_case1_flag && this.procNum.equals("1")) {
+            System.exit(0);
+        }
+        
         if (this.cascadingcoordinatorfailure_case1_flag && this.procNum.equals("2")) {
             System.exit(0);
         }
@@ -938,7 +937,7 @@ public class ParticipantProcess {
         // I guess this sendMessage function might be wrong 
         // because different participant may not agree on the same coordinator
         
-        if (this.totalfailure_case2_flag && this.procNum.equals("2")) {
+        if (this.totalfailure_case2_flag && this.procNum.equals("2") && runtimes >= 3) {
             System.exit(0);
         }
 
@@ -1121,7 +1120,7 @@ public class ParticipantProcess {
         }
 
 
-        if (this.totalfailure_case2_flag && this.procNum.equals("2")) {
+        if (this.totalfailure_case2_flag && this.procNum.equals("2") && runtimes >= 3) {
             System.exit(0);
         }
 
@@ -1645,7 +1644,7 @@ public class ParticipantProcess {
         }
 
 
-        if (this.totalfailure_case2_flag && this.procNum.equals("0")) {
+        if (this.totalfailure_case2_flag && this.procNum.equals("0") && runtimes >= 3) {
             System.exit(0);
         }
 
