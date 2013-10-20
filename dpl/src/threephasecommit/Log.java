@@ -24,19 +24,8 @@ public class Log {
     private String filePath;    
     private FileWriter fileWriter;
     
-    public Log(String filePath) throws FileNotFoundException, IOException{
-        this(new File(filePath), false);
-    }
-    
     public Log(String filePath, boolean create) throws FileNotFoundException, IOException {
-        this(new File(filePath), create);
-    }
-    
-    public Log(File file) throws FileNotFoundException, IOException {
-        this(file, false);
-    }
-    
-    public Log(File file, boolean create) throws FileNotFoundException, IOException {
+        File file = new File(filePath);
         if (file == null) {
             throw new NullPointerException();
         }
@@ -81,6 +70,37 @@ public class Log {
         return last;
     }
     
+    public void independentUpdateLog(String fileName) {
+        String lastline;
+        try {
+            System.out.println("Enter independentUpdateLog....");
+            lastline = logread(fileName);
+            System.out.println(lastline);
+            String[] argslist = lastline.split(" ");
+            
+            for (String arg: argslist) {
+                System.out.println(arg);
+            }
+            
+            if (lastline != "") {
+                System.out.println("Updating now....");
+                this.fileWriter.write(System.currentTimeMillis() + " " + "ABORT" + " " + argslist[2] + " " + argslist[3] + " " + argslist[4] + "\n");
+                this.fileWriter.flush();
+            }
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(Log.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(Log.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+    }
+    
+    public String extractLogType(String line) {
+        String[] argslist = line.split(" ");
+        String logtype = argslist[1];
+        return logtype;
+    }
+    
     public boolean log(String data, String command, String song, String URL) {
         try {
             this.fileWriter.write(System.currentTimeMillis()+" "+data+" "+command+" "+song+" "+URL+"\n");
@@ -90,6 +110,16 @@ public class Log {
         }
         return true;
         
+    }
+    
+    public boolean log(String parameter) {
+        try {
+            this.fileWriter.write(parameter);
+            this.fileWriter.flush();
+        } catch(IOException e) {
+            return false;
+        }
+        return true;
     }
     
 }

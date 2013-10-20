@@ -15,4 +15,5 @@ host5 = 127.0.0.1
 host6 = 127.0.0.1
 ProcNum = 5
 logfile = log5.txt
+uplistfile = uplistlog5.txt
 

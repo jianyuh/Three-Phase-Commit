@@ -23,6 +23,10 @@ public class Message {
     public enum messageType {
         INITIAL,
         RECOVERY,
+        INQUIRY,
+        REPLY,
+        LOGREPLY,
+        UPLISTSYN,
         
         VOTE_REQ,
         NO,
